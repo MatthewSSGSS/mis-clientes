@@ -910,6 +910,26 @@ button.meta-card { display: flex; align-items: center; gap: 12px; width: 100%; t
 .g-row.g-wrap .li-body { flex: 1 1 180px; }
 .row-actions { display: flex; gap: 8px; margin-left: auto; }
 
+/* Iniciar sesión / crear cuenta */
+.acceso { z-index: 66; }
+.acceso .segmented { background: rgba(255,255,255,.12); }
+.acceso .segmented button { color: rgba(255,255,255,.75); }
+.acceso .segmented .on { background: rgba(255,255,255,.95); color: #111; }
+.clave-wrap { position: relative; }
+.clave-wrap .input { padding-right: 82px; }
+.ver-clave {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  border: 0; border-radius: 10px; padding: 6px 10px; font-size: 13px; font-weight: 700;
+  background: rgba(255,255,255,.14); color: #fff;
+}
+.acceso-msg {
+  margin: 0 0 14px; padding: 12px 14px; border-radius: 14px; font-size: 14px; font-weight: 600;
+  background: rgba(255, 90, 125, .16); border: 1px solid rgba(255, 90, 125, .35); color: #ffd0da;
+}
+.acceso-msg.ok { background: rgba(63, 207, 130, .14); border-color: rgba(63, 207, 130, .35); color: #c9f5dc; }
+.acceso-local { margin-top: 22px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,.14); text-align: center; }
+.select-sm { min-height: 36px; padding: 6px 34px 6px 12px; font-size: 14px; border-radius: 11px; width: auto; background-position: right 10px center; }
+
 /* Pantalla de entrada (sesión cerrada) */
 .entrada { z-index: 65; }
 .pin-input { text-align: center; font-size: 28px; letter-spacing: .5em; font-weight: 800; }

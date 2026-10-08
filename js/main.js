@@ -20,7 +20,9 @@ import { modoSerie } from './enviar.js';
 import { menuImportar } from './documentos.js';
 import { sesionCerrada, cerrarSesion, mostrarEntrada } from './sesion.js';
 import { actualizarInsignia } from './recordatorios.js';
-import { hojaAbierta, cerrarHoja, aviso, icon, temaOscuro } from './ui.js';
+import * as nube from './nube.js';
+import { mostrarAcceso, pedirNuevaContrasena, preguntarImportar } from './views/acceso.js';
+import { hojaAbierta, cerrarHoja, aviso, icon, temaOscuro, confirmar } from './ui.js';
 import { hoy as fechaHoy, primerNombre } from './util.js';
 
 const RUTAS = {
@@ -48,6 +50,7 @@ export function navegar(hash) {
 }
 
 function render() {
+  if (!iniciado) return; // todavía no se sabe qué cuenta usar
   if (sesionCerrada()) { $view.replaceChildren(); return; } // nada visible con la sesión cerrada
   const ruta = leerRuta();
   const { vista, nav } = RUTAS[ruta.nombre];
@@ -145,6 +148,7 @@ document.querySelector('[data-action="new-client"]').addEventListener('click', (
 
 // Tema claro / oscuro
 function aplicarTema() {
+  if (!iniciado) return;
   const t = store.ajustes().tema;
   if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
   else delete document.documentElement.dataset.theme;
@@ -176,17 +180,86 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 
 // Cerrar sesión (menú lateral en computador; en celular está en Ajustes)
 document.addEventListener('click', (e) => {
-  if (e.target.closest('[data-cerrar-sesion]')) cerrarSesion(() => render());
+  if (!e.target.closest('[data-cerrar-sesion]')) return;
+  if (nube.enCuenta()) cerrarSesionCuenta();
+  else cerrarSesion(() => render());
 });
 
+async function cerrarSesionCuenta() {
+  const sinSubir = nube.hayCambiosSinSubir() && !navigator.onLine;
+  const ok = await confirmar({
+    titulo: '¿Cerrar sesión?',
+    texto: sinSubir
+      ? '<b>Hay cambios que aún no se han subido</b> porque no hay internet. Si cierras sesión ahora, se perderán. Mejor espera a tener señal.'
+      : 'Tus clientes quedan guardados en tu cuenta. Para volver a verlos, inicia sesión con tu correo y contraseña.',
+    si: 'Cerrar sesión', peligro: sinSubir,
+  });
+  if (!ok) return;
+  aviso('Cerrando sesión…', { icono: 'clock' });
+  await nube.desconectar();
+  location.replace(location.pathname + location.search);
+}
+
 // --- Arranque ---
-aplicarTema();
-navegaciones = 1;
-if (sesionCerrada()) {
-  mostrarEntrada(() => render());
-} else {
+let iniciado = false;
+
+/** Entra con una cuenta: sincroniza y muestra la app. */
+async function entrarConCuenta(usuario, { nuevo = false } = {}) {
+  aviso('Cargando tus clientes…', { icono: 'clock', ms: 2500 });
+  await nube.conectar(usuario, { preguntarImportar });
+  iniciado = true;
+  aplicarTema();
   render();
   if (!store.ajustes().bienvenidaVista && !store.clientes().length) {
-    mostrarBienvenida(() => render());
+    mostrarBienvenida(() => render(), { nombre: usuario.user_metadata?.nombre || '', cuenta: true });
+  } else if (nuevo) {
+    aviso('¡Cuenta creada! Tus clientes se guardan en la nube.', { ms: 5000 });
   }
 }
+
+/** Modo sin cuenta: los datos solo viven en este equipo. */
+function iniciarLocal() {
+  store.usarAlmacen(store.CLAVE_LOCAL);
+  iniciado = true;
+  aplicarTema();
+  if (sesionCerrada()) { mostrarEntrada(() => render()); return; }
+  render();
+  if (!store.ajustes().bienvenidaVista && !store.clientes().length) mostrarBienvenida(() => render());
+}
+
+async function arrancar() {
+  aplicarTema();
+  navegaciones = 1;
+  if (!nube.disponible()) { iniciarLocal(); return; }
+
+  let recuperando = /type=recovery/.test(location.hash);
+  const errorEnlace = /error_description=/.test(location.hash) ? decodeURIComponent((location.hash.match(/error_description=([^&]+)/) || [])[1] || '').replace(/\+/g, ' ') : '';
+  nube.alCambiarSesion((evento) => {
+    if (evento === 'PASSWORD_RECOVERY') recuperando = true;
+    if (evento === 'SIGNED_OUT' && nube.enCuenta()) location.replace(location.pathname); // sesión cerrada en otra pestaña
+  });
+  nube.alCambiarEstado(() => { if (iniciado && leerRuta().nombre === 'ajustes' && !escribiendoEnVista() && !hojaAbierta()) render(); });
+
+  let sesion = null;
+  try { sesion = await nube.sesionActual(); } catch { /* sin conexión: se usa lo guardado */ }
+  // Limpiar de la URL los datos del enlace del correo
+  if (/access_token=|error_description=|type=/.test(location.hash)) history.replaceState(null, '', `${location.pathname}${location.search}#/hoy`);
+
+  if (sesion?.user) {
+    await entrarConCuenta(sesion.user);
+    if (recuperando) pedirNuevaContrasena();
+    return;
+  }
+  if (nube.modoGuardado() === 'local') { iniciarLocal(); return; }
+
+  const r = await mostrarAcceso({
+    mensaje: errorEnlace ? 'Ese enlace ya no sirve (pudo vencer). Pide uno nuevo con "Olvidé mi contraseña".' : '',
+  });
+  if (r.modo === 'cuenta') await entrarConCuenta(r.usuario, { nuevo: r.nuevo });
+  else { nube.elegirModoLocal(); iniciarLocal(); }
+}
+
+arrancar().catch((e) => {
+  console.error('Error al arrancar', e);
+  iniciarLocal();
+});

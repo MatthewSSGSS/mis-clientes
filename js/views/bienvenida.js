@@ -16,7 +16,7 @@ function paisSugerido() {
   return mapa[region] || '57';
 }
 
-export function mostrarBienvenida(alTerminar) {
+export function mostrarBienvenida(alTerminar, { nombre = "", cuenta = false } = {}) {
   const el = document.createElement('div');
   el.className = 'welcome';
   el.setAttribute('role', 'dialog');
@@ -26,8 +26,8 @@ export function mostrarBienvenida(alTerminar) {
     <img class="hero-img" src="img/${FOTOS.bienvenida}" alt="">
     <div class="welcome-inner">
       <div class="brand"><img src="icons/icon-192.png" alt="" width="40" height="40"> Mis Clientes</div>
-      <h1>Tus clientes,<br><em>siempre a mano.</em></h1>
-      <p class="lead">Registra a tus clientes, recibe recordatorios y envía mensajes de WhatsApp en segundos.</p>
+      <h1>${cuenta ? `¡Hola${nombre ? `, ${esc(nombre)}` : ""}!<br><em>Ya casi está.</em>` : "Tus clientes,<br><em>siempre a mano.</em>"}</h1>
+      <p class="lead">${cuenta ? "Confirma tu nombre y tu país. Tus clientes se guardarán en tu cuenta." : "Registra a tus clientes, recibe recordatorios y envía mensajes de WhatsApp en segundos."}</p>
       <ul class="feature-list">
         <li>${icon('users')} Todos tus clientes en un solo lugar</li>
         <li>${icon('gift')} Cumpleaños y seguimientos automáticos</li>
@@ -36,7 +36,7 @@ export function mostrarBienvenida(alTerminar) {
       <form data-form novalidate>
         <div class="field">
           <label for="w-nombre">¿Cómo te llamas?</label>
-          <input id="w-nombre" class="input" name="nombre" placeholder="Tu nombre" autocomplete="given-name" autocapitalize="words">
+          <input id="w-nombre" class="input" name="nombre" value="${esc(nombre)}" placeholder="Tu nombre" autocomplete="given-name" autocapitalize="words">
         </div>
         <div class="field">
           <label for="w-pais">País</label>
@@ -46,7 +46,7 @@ export function mostrarBienvenida(alTerminar) {
         </div>
         <label class="check"><input type="checkbox" name="ejemplo"> Cargar clientes de ejemplo para probar</label>
         <button class="btn btn-primary btn-lg btn-block" type="submit">Empezar ${icon('chev-r')}</button>
-        <p class="small center mt-16" style="color:rgba(255,255,255,.6)">Tus datos se guardan solo en este dispositivo. Nadie más los ve.</p>
+        <p class="small center mt-16" style="color:rgba(255,255,255,.6)">${cuenta ? "Tus clientes se guardan en tu cuenta. Solo tú puedes verlos." : "Tus datos se guardan solo en este dispositivo. Nadie más los ve."}</p>
       </form>
     </div>`;
   document.body.appendChild(el);

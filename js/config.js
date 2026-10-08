@@ -4,7 +4,19 @@
 // este es el archivo. Cada vez que publiques cambios, sube APP_VERSION.
 // =============================================================================
 
-export const APP_VERSION = '1.6.0';
+export const APP_VERSION = '2.0.0';
+
+// Nube (Supabase): cuentas, sincronización y notificaciones.
+// La URL y la clave "publishable" son públicas: está bien que vayan aquí.
+// La seguridad la dan las reglas (RLS) de la base de datos: cada usuario
+// solo puede leer y escribir sus propios datos (ver supabase/esquema.sql).
+// Si dejas `url` vacío, la app funciona solo en modo "sin cuenta".
+export const NUBE = {
+  url: 'https://ivajnzmbzuvaylozurah.supabase.co',
+  clave: 'sb_publishable_xUd9eE8PuAnn1KGicKkPdA_5ZQ1yVNr',
+  // Clave pública de las notificaciones push (la privada va en los secretos de Supabase)
+  vapidPublica: 'BEWMtL-a7Ww-4XwXV8YSwgyEGBGQO-jbhSocePd_gdfqe6St9CP6LizGqs64HZHLIb7oJmR2bejppWk4W9NE1lo',
+};
 
 // Etapas del proceso de venta. El orden importa (así se muestran).
 // color: blue | violet | amber | green | red | pink | gray

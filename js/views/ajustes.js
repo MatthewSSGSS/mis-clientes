@@ -12,6 +12,9 @@ import {
 import { importarDocumento, escribirLista } from '../documentos.js';
 import { abrirRecordatorio, textoRecordatorio, estadoInsignia, activarInsignia } from '../recordatorios.js';
 import { tienePin, configurarPin, quitarPin } from '../sesion.js';
+import * as nube from '../nube.js';
+import { pedirNuevaContrasena } from './acceso.js';
+import { horaBonita, HORAS } from '../recordatorios.js';
 import { icon, abrirHoja, cerrarHoja, confirmar, aviso, categoria, avatar, botonTema, botonInicio } from '../ui.js';
 import { esc, cuando, plural, esIOS, esAndroid, esInstalada, debounce } from '../util.js';
 
@@ -32,6 +35,8 @@ export function render(root) {
     </header>
 
     <div class="page">
+      ${grupoCuenta()}
+
       <div class="settings-group">
         <h2>Tu perfil</h2>
         <div class="card card-pad">
@@ -75,6 +80,10 @@ export function render(root) {
       <div class="settings-group">
         <h2>Recordatorios y avisos</h2>
         <div class="grouped">
+          <div class="g-row g-wrap" data-push-fila>
+            <span class="icon-badge" data-color="red">${icon('bell')}</span>
+            <div class="li-body"><b>Notificaciones en este equipo</b><span class="small muted">Revisando…</span></div>
+          </div>
           <button class="g-row" data-recordatorio>
             <span class="icon-badge" data-color="red">${icon('bell')}</span>
             <div class="li-body"><b>Recordatorio diario</b>
@@ -150,7 +159,7 @@ export function render(root) {
         </div>
       </div>
 
-      <div class="settings-group">
+      ${nube.enCuenta() ? "" : `<div class="settings-group">
         <h2>Sesión y seguridad</h2>
         <div class="grouped">
           <div class="g-row g-wrap">
@@ -165,7 +174,7 @@ export function render(root) {
           </div>
         </div>
         <button class="btn btn-outline btn-block btn-lg mt-12" data-cerrar-sesion>${icon('logout')} Cerrar sesión</button>
-      </div>
+      </div>`}
 
       <div class="settings-group">
         <h2>Zona de cuidado</h2>
@@ -193,7 +202,9 @@ export function render(root) {
   root.querySelector('[data-respaldo]').addEventListener('click', () => guardarRespaldo());
   root.querySelector('[data-restaurar]').addEventListener('click', () => restaurarRespaldo());
   root.querySelector('[data-recordatorio]').addEventListener('click', () => abrirRecordatorio());
-  root.querySelector('[data-pin]').addEventListener('click', () => configurarPin());
+  root.querySelector('[data-pin]')?.addEventListener('click', () => configurarPin());
+  conectarCuenta(root);
+  pintarFilaPush(root);
   root.querySelector('[data-pin-quitar]')?.addEventListener('click', async () => {
     if (await confirmar({ titulo: '¿Quitar el PIN?', texto: 'Al cerrar sesión ya no se pedirá PIN para entrar.', si: 'Quitar PIN' })) quitarPin();
   });
@@ -218,6 +229,133 @@ export function render(root) {
     if (!ok) return;
     store.borrarTodo();
     aviso('Datos borrados', { icono: 'trash' });
+  });
+}
+
+// --- Cuenta en la nube ------------------------------------------------------------
+function textoEstado() {
+  const { estado, ultimaSync } = nube.estadoSync();
+  if (estado === 'sincronizando') return { t: 'Guardando en la nube…', c: 'blue' };
+  if (estado === 'pendiente') return { t: 'Cambios por guardar…', c: 'amber' };
+  if (estado === 'sin-conexion') return { t: 'Sin internet: se guardará cuando vuelva la señal', c: 'amber' };
+  if (estado === 'error') return { t: 'No se pudo sincronizar. Toca "Sincronizar" para intentar de nuevo.', c: 'red' };
+  if (estado === 'sincronizado') return { t: `Todo guardado en la nube${ultimaSync ? ` · ${cuando(ultimaSync.toISOString()).toLowerCase()}` : ''}`, c: 'green' };
+  return { t: 'Conectando…', c: 'gray' };
+}
+
+function grupoCuenta() {
+  if (!nube.disponible()) return '';
+  if (!nube.enCuenta()) {
+    return `
+      <div class="settings-group">
+        <h2>Cuenta en la nube</h2>
+        <div class="card card-pad">
+          <div class="hstack" style="align-items:flex-start">
+            <span class="icon-badge" data-color="blue">${icon('shield')}</span>
+            <div class="li-body"><b>Estás usando la app sin cuenta</b>
+              <span class="small muted">Con una cuenta gratis tus clientes se guardan en internet, los ves en el celular y en el computador, y recibes notificaciones.</span></div>
+          </div>
+          <button class="btn btn-primary btn-block mt-12" data-ir-cuenta>${icon('lock')} Crear cuenta o iniciar sesión</button>
+        </div>
+      </div>`;
+  }
+  const u = nube.usuarioActual();
+  const e = textoEstado();
+  return `
+    <div class="settings-group">
+      <h2>Tu cuenta</h2>
+      <div class="grouped">
+        <div class="g-row">
+          <span class="icon-badge" data-color="${e.c}">${icon('shield')}</span>
+          <div class="li-body"><b style="word-break:break-all">${esc(u.email)}</b><span class="small muted" data-estado-sync>${esc(e.t)}</span></div>
+          <button class="btn btn-sm btn-outline" data-sincronizar>Sincronizar</button>
+        </div>
+        <button class="g-row" data-cambiar-clave>${icon('lock')}<div class="li-body"><b>Cambiar contraseña</b></div>${icon('chev-r', 'chev')}</button>
+      </div>
+      <button class="btn btn-outline btn-block btn-lg mt-12" data-cerrar-sesion>${icon('logout')} Cerrar sesión</button>
+    </div>`;
+}
+
+function conectarCuenta(root) {
+  root.querySelector('[data-ir-cuenta]')?.addEventListener('click', () => {
+    nube.olvidarModoLocal();
+    location.replace(location.pathname + location.search); // al recargar aparece la pantalla de iniciar sesión
+  });
+  root.querySelector('[data-sincronizar]')?.addEventListener('click', async (e) => {
+    e.currentTarget.disabled = true;
+    await nube.sincronizar();
+    const est = nube.estadoSync().estado;
+    aviso(est === 'sincronizado' ? 'Todo guardado en la nube' : 'No se pudo sincronizar ahora', { icono: est === 'sincronizado' ? 'check' : 'x' });
+  });
+  root.querySelector('[data-cambiar-clave]')?.addEventListener('click', () => pedirNuevaContrasena({ titulo: 'Cambiar contraseña' }));
+}
+
+// --- Notificaciones push ------------------------------------------------------------
+async function pintarFilaPush(root) {
+  const fila = root.querySelector('[data-push-fila]');
+  if (!fila) return;
+  if (!nube.disponible()) { fila.remove(); return; }
+  const a = store.ajustes();
+  const base = (color, titulo, sub, acciones = '') => `
+    <span class="icon-badge" data-color="${color}">${icon('bell')}</span>
+    <div class="li-body"><b>${titulo}</b><span class="small muted">${sub}</span></div>
+    ${acciones ? `<div class="row-actions">${acciones}</div>` : ''}`;
+
+  if (!nube.enCuenta()) {
+    fila.innerHTML = base('gray', 'Notificaciones', 'Para recibir avisos de tus clientes y citas, crea una cuenta o inicia sesión.');
+    return;
+  }
+  const estado = await nube.estadoPush();
+  if (!fila.isConnected) return;
+  const selectHora = `
+    <select class="select select-sm" data-aviso-hora aria-label="Hora del resumen diario">
+      ${HORAS.map((h) => `<option value="${h}" ${Number(a.avisoHora ?? 8) === h ? 'selected' : ''}>${horaBonita(h)}</option>`).join('')}
+    </select>`;
+  if (estado === 'activo') {
+    fila.innerHTML = base('green', 'Notificaciones activadas',
+      'Te llega un resumen cada mañana y un aviso 1 hora antes de cada cita.',
+      `${selectHora}<button class="btn btn-sm btn-outline" data-push-probar>Probar</button><button class="btn btn-sm btn-ghost" data-push-quitar>Desactivar</button>`);
+  } else if (estado === 'instalar') {
+    fila.innerHTML = base('amber', 'Notificaciones', 'En iPhone, primero instala la app: Safari → Compartir → "Agregar a inicio". Luego ábrela desde el ícono y vuelve aquí.');
+  } else if (estado === 'bloqueado') {
+    fila.innerHTML = base('red', 'Notificaciones bloqueadas', esIOS
+      ? 'Actívalas en Ajustes del iPhone → Notificaciones → Mis Clientes.'
+      : 'Actívalas en la configuración del navegador (el candado junto a la dirección → Notificaciones → Permitir).');
+  } else if (estado === 'no-soportado') {
+    fila.innerHTML = base('gray', 'Notificaciones', 'Este navegador no permite notificaciones. Prueba con Chrome, Edge o Safari actualizado.');
+  } else {
+    fila.innerHTML = base('red', 'Activa las notificaciones', 'Un resumen cada mañana con tus clientes del día y un aviso 1 hora antes de cada cita.',
+      '<button class="btn btn-sm btn-primary" data-push-activar>Activar</button>');
+  }
+
+  fila.querySelector('[data-push-activar]')?.addEventListener('click', async (e) => {
+    e.currentTarget.disabled = true;
+    try {
+      await nube.activarPush();
+      aviso('¡Listo! Te llegarán las notificaciones. Toca "Probar" para ver una.', { ms: 6000 });
+    } catch (err) {
+      aviso(err.message === 'permiso' ? 'No se dio el permiso para notificaciones' : (err.message || nube.traducirError(err)), { icono: 'x', ms: 6000 });
+    }
+    pintarFilaPush(root);
+  });
+  fila.querySelector('[data-push-probar]')?.addEventListener('click', async (e) => {
+    e.currentTarget.disabled = true;
+    try {
+      const r = await nube.probarPush();
+      aviso(r?.enviados ? 'Enviada. Debería llegarte en unos segundos.' : 'El servidor no encontró este equipo. Desactiva y vuelve a activar.', { icono: r?.enviados ? 'bell' : 'x', ms: 6000 });
+    } catch (err) {
+      aviso(`No se pudo enviar la prueba (${nube.traducirError(err)})`, { icono: 'x', ms: 7000 });
+    }
+    if (e.currentTarget?.isConnected) e.currentTarget.disabled = false;
+  });
+  fila.querySelector('[data-push-quitar]')?.addEventListener('click', async () => {
+    await nube.desactivarPush();
+    aviso('Notificaciones desactivadas en este equipo', { icono: 'bell' });
+    pintarFilaPush(root);
+  });
+  fila.querySelector('[data-aviso-hora]')?.addEventListener('change', (e) => {
+    store.actualizarAjustes({ avisoHora: Number(e.target.value) });
+    aviso(`El resumen te llegará a las ${horaBonita(Number(e.target.value))}`);
   });
 }
 

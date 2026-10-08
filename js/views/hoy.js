@@ -18,6 +18,7 @@ import { abrirFormularioProgramado } from './mensajes.js';
 import { guardarRespaldo } from '../importar.js';
 import { menuImportar } from '../documentos.js';
 import { abrirRecordatorio } from '../recordatorios.js';
+import * as nube from '../nube.js';
 import {
   icon, avatar, etapa as infoEtapa, categoria, badgeCategoria, vacio, botonTema, abrirHoja, cerrarHoja, aviso,
 } from '../ui.js';
@@ -267,8 +268,12 @@ function primerosPasos(a, clientes) {
     { hecho: clientes.some((c) => c.proximoSeguimiento) || enviados, titulo: 'Ponle fecha de seguimiento a un cliente', sub: 'Así la app te recuerda escribirle', accion: '<a class="btn btn-sm btn-outline" href="#/clientes">Ver</a>' },
     { hecho: enviados, titulo: 'Envía tu primer mensaje', sub: 'Desde "Para hoy" o desde la ficha de un cliente' },
     { hecho: esInstalada() || !esMovil, titulo: 'Instala la app en tu celular', sub: 'Para abrirla con un toque y proteger tus datos', accion: '<a class="btn btn-sm btn-outline" href="#/ajustes">Cómo</a>' },
-    { hecho: !!a.recordatorioAgregado, titulo: 'Activa tu recordatorio diario', sub: 'Tu celular te avisa cada día a la hora que elijas', accion: '<button class="btn btn-sm btn-outline" data-recordatorio>Activar</button>' },
-    { hecho: !!a.ultimoRespaldo, titulo: 'Guarda tu primera copia de seguridad', sub: 'Por si cambias o pierdes el celular', accion: '<button class="btn btn-sm btn-outline" data-respaldo>Guardar</button>' },
+    nube.enCuenta()
+      ? { hecho: !!a.pushActivo, titulo: 'Activa las notificaciones', sub: 'Un resumen cada mañana y un aviso antes de cada cita', accion: '<a class="btn btn-sm btn-outline" href="#/ajustes">Activar</a>' }
+      : { hecho: !!a.recordatorioAgregado, titulo: 'Activa tu recordatorio diario', sub: 'Tu celular te avisa cada día a la hora que elijas', accion: '<button class="btn btn-sm btn-outline" data-recordatorio>Activar</button>' },
+    nube.enCuenta()
+      ? { hecho: true, titulo: 'Tus clientes se guardan en la nube', sub: 'Con tu cuenta no necesitas copias de seguridad' }
+      : { hecho: !!a.ultimoRespaldo, titulo: 'Guarda tu primera copia de seguridad', sub: 'Por si cambias o pierdes el celular', accion: '<button class="btn btn-sm btn-outline" data-respaldo>Guardar</button>' },
   ];
 }
 
@@ -520,7 +525,7 @@ function avisos(a, clientes, mostrarPasos) {
         : 'Toca el menú <b>⋮</b> del navegador y luego <b>"Instalar app"</b> o <b>"Agregar a pantalla principal"</b>.'}
       <div class="banner-actions"><a class="btn btn-sm btn-outline" href="#/ajustes">Ver cómo</a></div></div></div>`);
   }
-  if (clientes.length >= 3) {
+  if (clientes.length >= 3 && !nube.enCuenta()) { // con cuenta, todo está en la nube
     const ult = a.ultimoRespaldo ? diasEntre(fechaStr(new Date(a.ultimoRespaldo)), hoy()) : Infinity;
     if (ult >= DIAS_RECORDAR_RESPALDO) {
       out.push(`<div class="banner warn">${icon('shield', 'i-lg')}<div><strong>Haz una copia de seguridad</strong>
