@@ -1,3 +1,4 @@
+// @ts-nocheck — Este archivo corre en Supabase (Deno). VS Code no conoce Deno y lo marcaría en rojo.
 // =============================================================================
 // Función "avisos" (Supabase Edge Function) — envía las notificaciones push.
 //

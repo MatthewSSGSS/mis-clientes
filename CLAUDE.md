@@ -3,8 +3,10 @@
 App web estática ("Mis Clientes") para seguimiento de clientes de una vendedora de vehículos Nissan, con mensajes de WhatsApp programados. El dueño (Matthew) la mantiene y le agrega funciones; la usuaria principal es su mamá (iPhone), pero cualquiera puede usar el link.
 
 ## Restricciones clave
-- **Sin build, sin dependencias, sin backend.** Vanilla JS con módulos ES, servida tal cual por GitHub Pages. No introducir npm, bundlers ni frameworks sin que se pida.
-- **Datos solo en el dispositivo** (`localStorage`, clave `misclientes:datos`). Cualquier cambio en la forma de los datos requiere subir `SCHEMA` y agregar un paso en `MIGRACIONES` (`js/store.js`). Nunca romper datos existentes.
+- **Sin build ni npm.** Vanilla JS con módulos ES, servida tal cual por GitHub Pages. supabase-js está copiado en `js/vendor/`. No introducir bundlers ni frameworks sin que se pida.
+- **Backend: Supabase** (proyecto "Agenda"), opcional para el usuario. Modo sin cuenta: `localStorage` clave `misclientes:datos`. Modo cuenta: copia local en `misclientes:cuenta:<uid>`, sincronizada con la tabla `datos_usuario` (jsonb + `version`). Ver `js/nube.js`, `js/sincro.js` y `supabase/`.
+- Cualquier cambio en la forma de los datos requiere subir `SCHEMA` y agregar un paso en `MIGRACIONES` (`js/store.js`). Nunca romper datos existentes. Todo lo que se guarde debe llevar `actualizado`, y lo que se borre debe pasar por `marcarBorrado` (si no, la sincronización lo resucita).
+- `privado/` tiene secretos y está en `.gitignore`: nunca subirlo ni mostrar su contenido.
 - **WhatsApp solo por enlaces** (`whatsapp://send` en móvil, `wa.me` en escritorio). No usar APIs no oficiales que automaticen la cuenta (riesgo de bloqueo del número).
 - **Gratis.** Nada que requiera pago.
 - Textos de la interfaz y comentarios del código **en español** (es-CO, tuteo). Nombres de funciones y variables en español, como el resto del código.

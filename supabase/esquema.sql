@@ -69,7 +69,12 @@ create table if not exists public.avisos_enviados (
 );
 alter table public.avisos_enviados enable row level security;
 
+-- Permisos del servidor (la función "avisos" usa el rol service_role).
+-- Hace falta si al crear el proyecto se desmarcó "Automatically expose new tables".
+grant select, insert, update, delete on public.datos_usuario, public.suscripciones_push, public.avisos_enviados to service_role;
+
 -- 4) Tareas programadas: revisar avisos cada 10 minutos y limpiar los viejos
+-- (__FUNCION__ es el nombre con que se creó la función en Supabase, p. ej. "avisos" o "Avisos")
 create extension if not exists pg_cron;
 create extension if not exists pg_net;
 
@@ -77,7 +82,7 @@ select cron.unschedule(jobid) from cron.job where jobname in ('mis-clientes-avis
 
 select cron.schedule('mis-clientes-avisos', '*/10 * * * *', $$
   select net.http_post(
-    url     := '__URL_PROYECTO__/functions/v1/avisos',
+    url     := '__URL_PROYECTO__/functions/v1/__FUNCION__',
     headers := '{"Content-Type": "application/json", "x-cron-secret": "__CRON_SECRET__"}'::jsonb,
     body    := '{}'::jsonb
   );

@@ -14,6 +14,8 @@ export const APP_VERSION = '2.0.0';
 export const NUBE = {
   url: 'https://ivajnzmbzuvaylozurah.supabase.co',
   clave: 'sb_publishable_xUd9eE8PuAnn1KGicKkPdA_5ZQ1yVNr',
+  // Nombre con que se creó la función de notificaciones en Supabase (distingue mayúsculas)
+  funcionAvisos: 'Avisos',
   // Clave pública de las notificaciones push (la privada va en los secretos de Supabase)
   vapidPublica: 'BEWMtL-a7Ww-4XwXV8YSwgyEGBGQO-jbhSocePd_gdfqe6St9CP6LizGqs64HZHLIb7oJmR2bejppWk4W9NE1lo',
 };

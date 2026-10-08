@@ -409,7 +409,7 @@ export async function desactivarPush() {
 export async function probarPush() {
   const c = await caches.open(CACHE_DATOS);
   await c.put('./__prueba', new Response(JSON.stringify({ t: Date.now() }), { headers: { 'Content-Type': 'application/json' } }));
-  const { data, error } = await cliente().functions.invoke('avisos', { body: { prueba: true } });
+  const { data, error } = await cliente().functions.invoke(NUBE.funcionAvisos || 'avisos', { body: { prueba: true } });
   if (error) throw error;
   return data; // { enviados, fallidos, total }
 }

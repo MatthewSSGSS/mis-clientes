@@ -76,6 +76,17 @@ cal/                  Eventos .ics del recordatorio diario (generados por tools/
 | Un ícono | Un `<symbol id="i-nombre">` en `index.html` (estilo [Lucide](https://lucide.dev)), y luego `icon('nombre')` |
 | Colores | Variables en `:root` de `styles.css` (y su versión oscura) |
 
+### Cuentas y nube (Supabase)
+
+La app puede usarse **sin cuenta** (datos solo en el equipo) o **con cuenta** (correo y contraseña; datos en Supabase y sincronizados entre equipos).
+
+- Conexión: `NUBE` en `js/config.js` (URL, clave *publishable* y clave pública VAPID; todas públicas).
+- Base de datos: `supabase/esquema.sql`. Crea tablas, reglas RLS (cada usuario solo ve lo suyo), permisos y tareas programadas (pg_cron). Se ejecuta en *SQL Editor*.
+- Notificaciones: función `supabase/functions/avisos/index.ts`, desplegada en Supabase como **`Avisos`** (`NUBE.funcionAvisos`) con *Verify JWT* apagado. Usa los secretos `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` y `CRON_SECRET`.
+- `privado/` (no se sube a GitHub) tiene las claves, el SQL con los valores puestos y los secretos.
+- Correos (confirmar cuenta, recuperar contraseña): SMTP propio configurado en *Authentication → Emails*.
+- Sincronización (`js/nube.js` + `js/sincro.js`): una fila por usuario con `version`. Si dos equipos cambian a la vez, se unen los cambios. Todo lo que se guarda lleva `actualizado`, y lo que se borra queda en `borrados`.
+
 ### Notificaciones
 
 Una página web no puede programar notificaciones con la app cerrada, así que la app usa dos caminos sin servidor:
