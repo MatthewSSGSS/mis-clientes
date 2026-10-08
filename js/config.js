@@ -4,7 +4,7 @@
 // este es el archivo. Cada vez que publiques cambios, sube APP_VERSION.
 // =============================================================================
 
-export const APP_VERSION = '1.4.0';
+export const APP_VERSION = '1.4.1';
 
 // Etapas del proceso de venta. El orden importa (así se muestran).
 // color: blue | violet | amber | green | red | pink | gray

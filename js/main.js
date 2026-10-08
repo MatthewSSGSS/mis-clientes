@@ -161,6 +161,15 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', (
 // Funciona sin internet y se puede instalar (service worker)
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  // Cuando se publica una versión nueva, el service worker nuevo toma el control:
+  // recargar una vez para que se vea de inmediato (no aplica en la primera visita).
+  const habiaVersion = !!navigator.serviceWorker.controller;
+  let recargando = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!habiaVersion || recargando || hojaAbierta()) return;
+    recargando = true;
+    location.reload();
+  });
 }
 
 // --- Arranque ---
