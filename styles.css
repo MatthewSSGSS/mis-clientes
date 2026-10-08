@@ -196,7 +196,7 @@ button { cursor: pointer; }
     position: sticky; top: 0; left: auto; right: auto; bottom: auto;
     height: 100dvh; max-width: none; margin: 0;
     display: flex; flex-direction: column; align-items: stretch; gap: 4px;
-    padding: 24px 16px;
+    padding: 24px 16px; overflow-y: auto;
     border-radius: 0; border: 0; border-right: 1px solid var(--border);
     box-shadow: none; background: var(--surface);
     backdrop-filter: none; -webkit-backdrop-filter: none;
@@ -749,6 +749,46 @@ button.meta-card { display: flex; align-items: center; gap: 12px; width: 100%; t
 
 .consejo { background: color-mix(in srgb, var(--c-amber) 7%, var(--surface)); border-color: color-mix(in srgb, var(--c-amber) 22%, var(--border)); }
 .consejo p { font-size: 15px; line-height: 1.55; }
+
+/* Fotos pequeñas en las tarjetas */
+.thumb { width: 56px; height: 56px; flex: none; border-radius: 16px; object-fit: cover; background: var(--surface-2); }
+.thumb-sm { width: 44px; height: 44px; border-radius: 13px; }
+.card-cover {
+  position: relative; overflow: hidden; height: 128px;
+  margin: -18px -18px 16px; border-radius: calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px) 0 0;
+  color: #fff; background: #111;
+}
+.card-cover img { width: 100%; height: 100%; object-fit: cover; }
+.card-cover::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.05) 20%, rgba(0,0,0,.78)); }
+.card-cover-text { position: absolute; left: 18px; bottom: 14px; z-index: 1; display: grid; gap: 2px; }
+.card-cover-text h2 { font-size: 20px; font-weight: 800; }
+.card-cover-text span { font-size: 13px; color: rgba(255,255,255,.85); font-weight: 600; }
+.card-cover-btn {
+  position: absolute; top: 10px; right: 10px; z-index: 1; color: #fff;
+  background: rgba(255,255,255,.18); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+}
+.card-cover-btn:hover { background: rgba(255,255,255,.3); }
+.al-dia { display: flex; align-items: center; gap: 16px; padding: 12px; }
+.al-dia img { width: 132px; height: 88px; flex: none; border-radius: 14px; object-fit: cover; }
+.al-dia .li-body { display: grid; gap: 4px; }
+.al-dia b { display: inline-flex; align-items: center; gap: 6px; color: var(--c-green); }
+.consejo .li-body { display: grid; gap: 1px; }
+.consejo .li-body .small { display: inline-flex; align-items: center; gap: 4px; }
+
+/* Tarjeta con foto del menú lateral (solo computador) */
+.nav .nav-card { display: none; }
+@media (min-width: 960px) {
+  .nav .nav-card {
+    display: block; order: 10; margin-top: 18px; overflow: hidden;
+    border: 1px solid var(--border); border-radius: 18px; background: var(--surface-2);
+  }
+  .nav-card img { width: 100%; height: 104px; object-fit: cover; }
+  .nav-card-body { display: grid; gap: 4px; padding: 12px 14px 14px; }
+  .nav-card-body b { font-size: 15px; }
+  .nav-card-body .btn { margin-top: 8px; }
+  .nav-meta { display: grid; gap: 6px; margin-top: 10px; }
+  .nav-meta .meta-bar { height: 7px; background: var(--surface-3); }
+}
 
 /* Botón de casita (volver a Inicio) */
 .hero-sm .home-btn { left: var(--gutter); right: auto; }

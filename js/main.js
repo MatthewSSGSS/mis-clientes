@@ -16,6 +16,8 @@ import * as ajustes from './views/ajustes.js';
 import { mostrarBienvenida } from './views/bienvenida.js';
 import { abrirFormularioCliente } from './cliente-form.js';
 import { pendientesHoy } from './engine.js';
+import { modoSerie } from './enviar.js';
+import { menuImportar } from './documentos.js';
 import { actualizarInsignia } from './recordatorios.js';
 import { hojaAbierta, cerrarHoja, aviso, icon, temaOscuro } from './ui.js';
 import { hoy as fechaHoy, primerNombre } from './util.js';
@@ -63,8 +65,46 @@ function render() {
   if (mismaRuta) window.scrollTo(0, scroll);
   else { window.scrollTo(0, 0); rutaActual = ruta.clave; }
   renderPendiente = false;
-  actualizarInsignia(store.clientes().length ? pendientesHoy().length : 0);
+  const pendientes = store.clientes().length ? pendientesHoy() : [];
+  actualizarInsignia(pendientes.length);
+  pintarTarjetaMenu(pendientes);
 }
+
+// Tarjeta con foto en el menú lateral (solo computador): lo más útil del momento
+function pintarTarjetaMenu(pendientes) {
+  const el = document.querySelector('[data-nav-card]');
+  if (!el) return;
+  const a = store.ajustes();
+  const clientes = store.clientes();
+  const n = pendientes.length;
+  const mes = fechaHoy().slice(0, 7);
+  const ventas = clientes.filter((c) => c.etapa === 'vendido' && (c.fechaCompra || '').startsWith(mes)).length;
+  const meta = Number(a.metaVentas) || 0;
+  let titulo, texto, extra = '';
+  if (!clientes.length) {
+    titulo = 'Empieza hoy';
+    texto = 'Pasa los clientes de tu cuaderno en minutos.';
+    extra = `<button class="btn btn-primary btn-sm btn-block" data-nav-importar>${icon('upload', 'i-sm')} Pasar clientes</button>`;
+  } else if (n) {
+    titulo = `${n} ${n === 1 ? 'mensaje' : 'mensajes'} para hoy`;
+    texto = 'Ya están escritos. Solo toca enviar.';
+    extra = `<button class="btn btn-wa btn-sm btn-block" data-nav-serie>${icon('send', 'i-sm')} Empezar a enviar</button>`;
+  } else {
+    titulo = 'Todo al día ✨';
+    texto = 'No tienes mensajes pendientes.';
+  }
+  if (meta && clientes.length) {
+    extra += `<div class="nav-meta"><span class="small muted">Meta del mes: <b>${ventas} de ${meta}</b></span>
+      <div class="meta-bar ${ventas >= meta ? 'ok' : ''}"><span style="width:${Math.max(3, Math.min(100, (ventas / meta) * 100))}%"></span></div></div>`;
+  }
+  el.innerHTML = `
+    <img src="img/mini/gtr-naranja.jpg" alt="" loading="lazy">
+    <div class="nav-card-body"><b>${titulo}</b><span class="small muted">${texto}</span>${extra}</div>`;
+}
+document.querySelector('[data-nav-card]')?.addEventListener('click', (e) => {
+  if (e.target.closest('[data-nav-serie]')) modoSerie(pendientesHoy());
+  if (e.target.closest('[data-nav-importar]')) menuImportar();
+});
 
 // Si los datos cambian mientras la persona escribe en un campo de la pantalla,
 // esperar a que termine para no borrarle lo que está escribiendo.

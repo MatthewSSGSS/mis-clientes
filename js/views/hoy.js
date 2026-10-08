@@ -103,10 +103,12 @@ export function render(root, { navegar }) {
                   <h2 class="section-title">Para hoy</h2>
                   ${items.length > 1 ? `<button class="link-btn" data-serie>Enviar todos</button>` : ''}
                 </div>
-                ${items.length ? grupos(items) : `<div class="card">${vacio({
-                  icono: 'check', color: 'green', titulo: 'Estás al día',
-                  texto: 'Cuando haya cumpleaños, seguimientos u ofertas programadas, aparecerán aquí.',
-                })}</div>`}
+                ${items.length ? grupos(items) : `
+                  <div class="card al-dia">
+                    <img src="img/mini/navara-nieve.jpg" alt="" loading="lazy">
+                    <div class="li-body"><b>${icon('check', 'i-sm')} Estás al día</b>
+                      <span class="small muted">Cuando haya cumpleaños, seguimientos u ofertas programadas, aparecerán aquí.</span></div>
+                  </div>`}
               </section>` : '';
             const tarjeta = mostrarPasos ? tarjetaPasos(pasos) : '';
             // Si hay mensajes pendientes, eso va primero
@@ -151,7 +153,10 @@ export function render(root, { navegar }) {
 
           <section class="section">
             <div class="card card-pad consejo">
-              <div class="hstack"><span class="icon-badge" data-color="amber">${icon('sparkles')}</span><b>Consejo del día</b></div>
+              <div class="hstack">
+                <img class="thumb thumb-sm" src="img/mini/volante-sq.jpg" alt="" loading="lazy">
+                <div class="li-body"><b>Consejo del día</b><span class="small muted">${icon('sparkles', 'i-sm')} Para vender más</span></div>
+              </div>
               <p class="mt-12">${esc(consejoDelDia())}</p>
             </div>
           </section>
@@ -246,11 +251,12 @@ function tarjetaPasos(pasos) {
   return `
     <section class="section">
       <div class="card card-pad pasos">
-        <div class="hstack">
-          <div class="li-body"><h2 class="section-title">Primeros pasos</h2><span class="small muted">${listos} de ${pasos.length} listos</span></div>
-          <button class="btn btn-ghost btn-sm" data-ocultar-pasos>Ocultar</button>
+        <div class="card-cover">
+          <img src="img/mini/frontier-negra.jpg" alt="" loading="lazy">
+          <div class="card-cover-text"><h2>Primeros pasos</h2><span>${listos} de ${pasos.length} listos</span></div>
+          <button class="btn btn-sm card-cover-btn" data-ocultar-pasos>Ocultar</button>
         </div>
-        <div class="meta-bar mt-12"><span style="width:${(listos / pasos.length) * 100}%"></span></div>
+        <div class="meta-bar"><span style="width:${(listos / pasos.length) * 100}%"></span></div>
         <ol class="pasos-list">
           ${pasos.map((p, i) => `
             <li class="paso ${p.hecho ? 'hecho' : ''}">
@@ -300,7 +306,7 @@ function tarjetaMeta(a, ventas, h) {
     return `
       <section class="section section-first">
         <button class="card card-pad meta-card meta-vacia" data-meta>
-          <span class="icon-badge" data-color="green">${icon('flag')}</span>
+          <img class="thumb" src="img/mini/qashqai-atardecer-sq.jpg" alt="" loading="lazy">
           <div class="li-body"><b>Ponte una meta para ${esc(mesNombre)}</b><span class="small muted">¿Cuántos carros quieres vender este mes?</span></div>
           ${icon('chev-r', 'chev')}
         </button>
@@ -312,7 +318,7 @@ function tarjetaMeta(a, ventas, h) {
     <section class="section section-first">
       <div class="card card-pad meta-card">
         <div class="hstack">
-          <span class="icon-badge" data-color="green">${icon('flag')}</span>
+          <img class="thumb" src="img/mini/qashqai-atardecer-sq.jpg" alt="" loading="lazy">
           <div class="li-body"><b>Meta de ${esc(mesNombre)}</b><span class="small muted">${ventas} de ${meta} ${meta === 1 ? 'venta' : 'ventas'}</span></div>
           <button class="btn btn-ghost btn-sm" data-meta>Cambiar</button>
         </div>
@@ -479,9 +485,9 @@ function comoFunciona() {
     <section class="section">
       <div class="section-head"><h2 class="section-title">Así funciona</h2></div>
       <div class="grouped">
-        <div class="g-row">${badgeCategoria('seguimiento')}<div class="li-body"><b>1. Registra a tus clientes</b><span class="small muted">Nombre, celular, el carro que le interesa y su cumpleaños.</span></div></div>
-        <div class="g-row">${badgeCategoria('cumpleanos')}<div class="li-body"><b>2. La app te avisa cuándo escribir</b><span class="small muted">Cumpleaños, seguimientos, mantenimientos y aniversarios de compra.</span></div></div>
-        <div class="g-row">${badgeCategoria('ofertas')}<div class="li-body"><b>3. Tú solo tocas "Enviar"</b><span class="small muted">El mensaje llega escrito a WhatsApp, con el nombre de cada cliente.</span></div></div>
+        <div class="g-row"><img class="thumb" src="img/mini/xterra-montana-sq.jpg" alt="" loading="lazy"><div class="li-body"><b>1. Registra a tus clientes</b><span class="small muted">Nombre, celular, el carro que le interesa y su cumpleaños.</span></div></div>
+        <div class="g-row"><img class="thumb" src="img/mini/gtr-negro-sq.jpg" alt="" loading="lazy"><div class="li-body"><b>2. La app te avisa cuándo escribir</b><span class="small muted">Cumpleaños, seguimientos, mantenimientos y aniversarios de compra.</span></div></div>
+        <div class="g-row"><img class="thumb" src="img/mini/navara-nieve-sq.jpg" alt="" loading="lazy"><div class="li-body"><b>3. Tú solo tocas "Enviar"</b><span class="small muted">El mensaje llega escrito a WhatsApp, con el nombre de cada cliente.</span></div></div>
       </div>
     </section>`;
 }
