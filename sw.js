@@ -10,7 +10,7 @@
 // ARCHIVOS y cambia VERSION.
 // =============================================================================
 
-const VERSION = 'v9';
+const VERSION = 'v10';
 const CACHE = `mis-clientes-${VERSION}`;
 
 const ARCHIVOS = [
@@ -93,7 +93,7 @@ async function armarAviso() {
   const prueba = await leerJSON('./__prueba');
   if (prueba && ahora - prueba.t < 5 * 60000) {
     await guardarJSON('./__prueba', { t: 0 });
-    return { titulo: '¡Las notificaciones funcionan! ✅', cuerpo: 'Así te avisaremos de tus clientes y citas.', tag: 'prueba', url: './#/ajustes', ...icono };
+    return { titulo: '¡Las notificaciones funcionan! ✅', cuerpo: 'Así te avisaremos de tus clientes y citas.', tag: `prueba-${ahora}`, url: './#/ajustes', ...icono };
   }
 
   const resumen = (await leerJSON('./__resumen')) || {};
@@ -124,7 +124,9 @@ async function armarAviso() {
 
 self.addEventListener('push', (e) => {
   e.waitUntil(armarAviso().then((a) =>
-    self.registration.showNotification(a.titulo, { body: a.cuerpo, icon: a.icon, badge: a.badge, tag: a.tag, data: { url: a.url } })));
+    // renotify: aunque haya una notificación anterior con la misma etiqueta sin leer,
+    // la nueva suena y se muestra (si no, la reemplaza en silencio)
+    self.registration.showNotification(a.titulo, { body: a.cuerpo, icon: a.icon, badge: a.badge, tag: a.tag, renotify: true, data: { url: a.url } })));
 });
 
 self.addEventListener('notificationclick', (e) => {

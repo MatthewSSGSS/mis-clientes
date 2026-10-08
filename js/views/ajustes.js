@@ -339,14 +339,15 @@ async function pintarFilaPush(root) {
     pintarFilaPush(root);
   });
   fila.querySelector('[data-push-probar]')?.addEventListener('click', async (e) => {
-    e.currentTarget.disabled = true;
+    const boton = e.currentTarget; // después de un await, e.currentTarget ya no existe
+    boton.disabled = true;
     try {
       const r = await nube.probarPush();
       aviso(r?.enviados ? 'Enviada. Debería llegarte en unos segundos.' : 'El servidor no encontró este equipo. Desactiva y vuelve a activar.', { icono: r?.enviados ? 'bell' : 'x', ms: 6000 });
     } catch (err) {
       aviso(`No se pudo enviar la prueba (${nube.traducirError(err)})`, { icono: 'x', ms: 7000 });
     }
-    if (e.currentTarget?.isConnected) e.currentTarget.disabled = false;
+    setTimeout(() => { if (boton.isConnected) boton.disabled = false; }, 3000);
   });
   fila.querySelector('[data-push-quitar]')?.addEventListener('click', async () => {
     await nube.desactivarPush();
