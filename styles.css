@@ -543,8 +543,15 @@ button.g-row:hover, a.g-row:hover, label.g-row:hover { background: var(--surface
 @media (prefers-reduced-motion: reduce) { .hero-img { animation: none; } }
 
 /* Estadísticas */
-.stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: -18px; position: relative; z-index: 2; }
-@media (min-width: 640px) { .stats { grid-template-columns: repeat(4, 1fr); } }
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: -18px; position: relative; z-index: 2; }
+/* En el celular, las 4 cifras en una fila compacta para que lo de hoy quede a la vista */
+@media (max-width: 639px) {
+  .stats { gap: 6px; }
+  .stats .stat { padding: 10px 6px 9px; border-radius: 16px; text-align: center; justify-items: center; gap: 0; }
+  .stats .stat-value { font-size: 23px; order: -1; line-height: 1.15; }
+  .stats .stat-label { font-size: 10.5px; line-height: 1.2; display: block; }
+  .stats .stat-label .i { display: none; }
+}
 .stat {
   background: var(--surface); border: 1px solid var(--border); border-radius: 20px;
   padding: 14px 16px; box-shadow: var(--shadow);
@@ -1047,3 +1054,6 @@ body.hoja-abierta .toast { bottom: auto; top: calc(var(--safe-t) + 14px); }
 [data-color="red"] { --c: var(--c-red); }
 [data-color="pink"] { --c: var(--c-pink); }
 [data-color="gray"] { --c: var(--c-gray); }
+
+/* Texto en una sola línea con "…" si no cabe */
+.una-linea { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

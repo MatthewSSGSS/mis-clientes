@@ -17,7 +17,7 @@ import * as store from './store.js';
 import { NUBE, TIPOS_CITA } from './config.js';
 import { fusionar } from './sincro.js';
 import { pendientesHoy, proximos, horaCita } from './engine.js';
-import { hoy, sumarDias, aFecha, primerNombre, esIOS, esInstalada } from './util.js';
+import { hoy, sumarDias, aFecha, primerNombre, esIOS, esInstalada, telefonoInternacional } from './util.js';
 
 const CLAVE_MODO = 'misclientes:modo'; // 'local' si eligió usar la app sin cuenta
 const claveMeta = (id) => `misclientes:sync:${id}`;
@@ -135,14 +135,17 @@ export async function conectar(u, { preguntarImportar } = {}) {
 
   await sincronizar();
 
-  // ¿Hay clientes guardados en este equipo sin cuenta? Ofrecer subirlos.
+  // ¿Hay clientes guardados en este equipo sin cuenta? Ofrecer subirlos
+  // (sin los de ejemplo ni los que ya están en la cuenta con el mismo celular).
   const local = store.leerClave(store.CLAVE_LOCAL);
-  const reales = (local?.clientes || []).filter((c) => !c.ejemplo);
+  const cp = store.ajustes().codigoPais;
+  const yaEnCuenta = new Set(store.clientes().map((c) => telefonoInternacional(c.telefono, cp)));
+  const reales = (local?.clientes || []).filter((c) => !c.ejemplo && !yaEnCuenta.has(telefonoInternacional(c.telefono, cp)));
   const noPreguntar = (() => { try { return localStorage.getItem(`misclientes:noImportar:${u.id}`); } catch { return null; } })();
   if (reales.length && !noPreguntar && preguntarImportar) {
     const si = await preguntarImportar(reales.length);
     if (si) {
-      local.clientes = local.clientes.filter((c) => !c.ejemplo);
+      local.clientes = reales;
       store.reemplazarTodo(fusionar(store.get(), local), { origen: 'local' });
       marcarPendiente();
       await subir();

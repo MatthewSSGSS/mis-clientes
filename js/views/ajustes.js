@@ -267,7 +267,7 @@ function grupoCuenta() {
       <div class="grouped">
         <div class="g-row">
           <span class="icon-badge" data-color="${e.c}">${icon('shield')}</span>
-          <div class="li-body"><b style="word-break:break-all">${esc(u.email)}</b><span class="small muted" data-estado-sync>${esc(e.t)}</span></div>
+          <div class="li-body"><b class="una-linea" title="${esc(u.email)}">${esc(u.email)}</b><span class="small muted" data-estado-sync>${esc(e.t)}</span></div>
           <button class="btn btn-sm btn-outline" data-sincronizar>Sincronizar</button>
         </div>
         <button class="g-row" data-cambiar-clave>${icon('lock')}<div class="li-body"><b>Cambiar contraseña</b></div>${icon('chev-r', 'chev')}</button>
