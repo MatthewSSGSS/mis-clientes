@@ -10,7 +10,8 @@ import * as store from '../store.js';
 import {
   ETAPAS, ETAPAS_ACTIVAS, FOTOS, DIAS_RECORDAR_RESPALDO, DIAS_ENFRIANDO, CATEGORIAS, CONSEJOS,
 } from '../config.js';
-import { pendientesHoy, proximos } from '../engine.js';
+import { pendientesHoy, proximos, dineroCorto, documentosPendientes } from '../engine.js';
+import { citasDeHoy, proximasCitas, filaCita, conectarCitas, abrirFormularioCita } from '../citas.js';
 import { abrirMensaje, modoSerie } from '../enviar.js';
 import { abrirFormularioCliente } from '../cliente-form.js';
 import { abrirFormularioProgramado } from './mensajes.js';
@@ -43,11 +44,15 @@ export function render(root, { navegar }) {
   const pasos = primerosPasos(a, clientes);
   const mostrarPasos = !a.ocultarPasos && pasos.some((p) => !p.hecho);
   const frios = enfriando(clientes);
+  const citasHoy = citasDeHoy();
+  const citasProx = proximasCitas(7);
 
   let resumen;
+  const nCitas = citasHoy.filter((ct) => ct.fecha === h).length;
   if (!clientes.length) resumen = 'Empecemos: registra tu primer cliente y la app se encarga de recordarte cuándo escribirle.';
-  else if (items.length) resumen = `Tienes ${plural(items.length, 'mensaje', 'mensajes')} para enviar hoy.`;
-  else resumen = 'Todo al día. No tienes mensajes pendientes. ✨';
+  else if (items.length || nCitas) {
+    resumen = `Hoy tienes ${[nCitas && plural(nCitas, 'cita', 'citas'), items.length && plural(items.length, 'mensaje para enviar', 'mensajes para enviar')].filter(Boolean).join(' y ')}.`;
+  } else resumen = 'Todo al día. No tienes mensajes pendientes. ✨';
 
   root.innerHTML = `
     <header class="hero hero-home">
@@ -87,8 +92,8 @@ export function render(root, { navegar }) {
         <div class="quick-grid">
           <button class="quick" data-nuevo><span class="icon-badge" data-color="red">${icon('plus')}</span>Nuevo cliente</button>
           <button class="quick" data-importar><span class="icon-badge" data-color="amber">${icon('upload')}</span>Pasar clientes</button>
-          <button class="quick" data-programar><span class="icon-badge" data-color="violet">${icon('calendar')}</span>Programar mensaje</button>
-          <a class="quick" href="#/mensajes/plantillas"><span class="icon-badge" data-color="blue">${icon('message')}</span>Plantillas</a>
+          <button class="quick" data-programar><span class="icon-badge" data-color="violet">${icon('send')}</span>Programar mensaje</button>
+          <button class="quick" data-agendar><span class="icon-badge" data-color="blue">${icon('calendar')}</span>Agendar cita</button>
         </div>
       </div>
 
@@ -96,6 +101,14 @@ export function render(root, { navegar }) {
 
       <div class="home-grid">
         <div class="home-main">
+          ${citasHoy.length ? `
+          <section class="section">
+            <div class="section-head">
+              <h2 class="section-title">Citas de hoy</h2>
+              <span class="section-sub">${plural(citasHoy.length, 'cita', 'citas')}</span>
+            </div>
+            <div class="list">${citasHoy.map((ct) => filaCita(ct)).join('')}</div>
+          </section>` : ''}
           ${(() => {
             const paraHoy = clientes.length ? `
               <section class="section">
@@ -130,6 +143,17 @@ export function render(root, { navegar }) {
 
         <aside class="home-side">
           ${tarjetaMeta(a, ventasMes, h)}
+
+          ${tarjetaNegociaciones(clientes, mes)}
+
+          ${citasProx.length ? `
+          <section class="section">
+            <div class="section-head">
+              <h2 class="section-title">Próximas citas</h2>
+              <button class="link-btn" data-agendar>+ Agendar</button>
+            </div>
+            <div class="list">${citasProx.slice(0, 5).map((ct) => filaCita(ct, { mostrarFecha: true })).join('')}</div>
+          </section>` : ''}
 
           ${prox.length ? `
           <section class="section">
@@ -169,6 +193,8 @@ export function render(root, { navegar }) {
   root.querySelectorAll('[data-nuevo]').forEach((b) => b.addEventListener('click', () => abrirFormularioCliente()));
   root.querySelectorAll('[data-importar]').forEach((b) => b.addEventListener('click', () => menuImportar()));
   root.querySelectorAll('[data-programar]').forEach((b) => b.addEventListener('click', () => abrirFormularioProgramado()));
+  root.querySelectorAll('[data-agendar]').forEach((b) => b.addEventListener('click', () => abrirFormularioCita()));
+  conectarCitas(root);
   root.querySelectorAll('[data-respaldo]').forEach((b) => b.addEventListener('click', () => guardarRespaldo()));
   root.querySelector('[data-ver-prox]')?.addEventListener('click', () => { verTodosProximos = !verTodosProximos; render(root, { navegar }); });
   root.querySelector('[data-ocultar-pasos]')?.addEventListener('click', () => {
@@ -361,6 +387,30 @@ function editarMeta() {
   });
 }
 
+// --- Dinero en negociación ----------------------------------------------------------
+function tarjetaNegociaciones(clientes, mes) {
+  const abiertas = clientes.filter((c) => ETAPAS_ACTIVAS.includes(c.etapa) && Number(c.precio) > 0);
+  const vendidas = clientes.filter((c) => c.etapa === 'vendido' && (c.fechaCompra || '').startsWith(mes) && Number(c.precio) > 0);
+  if (!abiertas.length && !vendidas.length) return '';
+  const suma = (l) => l.reduce((t, c) => t + Number(c.precio), 0);
+  const credito = abiertas.filter((c) => c.formaPago === 'credito');
+  const conDocsPendientes = credito.filter((c) => documentosPendientes(c).length).length;
+  return `
+    <section class="section">
+      <div class="card card-pad neg-resumen">
+        <div class="hstack">
+          <img class="thumb" src="img/mini/frontier-negra-sq.jpg" alt="" loading="lazy">
+          <div class="li-body"><span class="small muted">En negociación</span><b class="neg-total">${esc(dineroCorto(suma(abiertas)))}</b>
+            <span class="small muted">${plural(abiertas.length, 'cliente', 'clientes')}${credito.length ? ` · ${credito.length} con crédito` : ''}</span></div>
+        </div>
+        ${vendidas.length || conDocsPendientes ? `<div class="neg-mini mt-12">
+          ${vendidas.length ? `<span>${icon('star', 'i-sm')} Vendido este mes: <b>${esc(dineroCorto(suma(vendidas)))}</b></span>` : ''}
+          ${conDocsPendientes ? `<a href="#/clientes/negociando">${icon('note', 'i-sm')} ${plural(conDocsPendientes, 'cliente con documentos pendientes', 'clientes con documentos pendientes')}</a>` : ''}
+        </div>` : ''}
+      </div>
+    </section>`;
+}
+
 // --- Actividad reciente -----------------------------------------------------------
 function actividad(clientes) {
   const eventos = clientes
@@ -375,6 +425,7 @@ function actividad(clientes) {
     else if (e.tipo === 'creado') { ic = 'users'; color = 'blue'; txt = `Registraste a <b>${n}</b>`; }
     else if (e.tipo === 'etapa') { const et = infoEtapa(e.texto); ic = et.id === 'vendido' ? 'star' : 'flag'; color = et.color; txt = `<b>${n}</b> pasó a ${esc(et.nombre)}`; }
     else if (e.tipo === 'nota') { ic = 'note'; color = 'amber'; txt = `Nota sobre <b>${n}</b>`; }
+    else if (e.tipo === 'cita') { ic = 'calendar'; color = /realizada/.test(e.titulo || '') ? 'green' : 'blue'; txt = `${esc(e.titulo || 'Cita')} · <b>${n}</b>`; }
     else txt = `<b>${n}</b>`;
     return `
       <a class="g-row" href="#/cliente/${e.c.id}">

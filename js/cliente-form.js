@@ -5,7 +5,7 @@
 // =============================================================================
 
 import * as store from './store.js';
-import { ETAPAS, ORIGENES } from './config.js';
+import { ETAPAS, ORIGENES, FORMAS_PAGO, DOCUMENTOS_CREDITO } from './config.js';
 import { abrirHoja, cerrarHoja, aviso, icon } from './ui.js';
 import { esc, hoy, sumarDias, nombreMes, diasDelMes, norm, telefonoInternacional } from './util.js';
 
@@ -19,9 +19,10 @@ const RAPIDOS = [
 
 /**
  * @param {string} [id] si viene, edita ese cliente; si no, crea uno nuevo
- * @param {{alGuardar?:(c:object)=>void, campos?:object}} [o]
+ * @param {{alGuardar?:(c:object)=>void, campos?:object, negociacion?:boolean}} [o]
+ *        negociacion: abrir directo en la sección de negociación
  */
-export function abrirFormularioCliente(id, { alGuardar, campos } = {}) {
+export function abrirFormularioCliente(id, { alGuardar, campos, negociacion = false } = {}) {
   const existente = id ? store.cliente(id) : null;
   const c = existente ? structuredClone(existente) : store.nuevoCliente({ proximoSeguimiento: sumarDias(hoy(), 2), ...campos });
   const [cMes, cDia] = (c.cumple || '').split('-').map((x) => Number(x) || '');
@@ -105,6 +106,38 @@ export function abrirFormularioCliente(id, { alGuardar, campos } = {}) {
           </div>
         </div>
 
+        <details class="form-extra" data-negociacion ${negociacion || c.precio || c.formaPago || c.version ? 'open' : ''}>
+          <summary>${icon('tag', 'i-sm')} Negociación <span class="muted small">versión, precio, forma de pago, retoma</span></summary>
+          <div class="row">
+            <div class="field">
+              <label for="f-version">Versión</label>
+              <input id="f-version" class="input" name="version" value="${esc(c.version)}" placeholder="Ej: Exclusive CVT">
+            </div>
+            <div class="field">
+              <label for="f-color">Color</label>
+              <input id="f-color" class="input" name="color" value="${esc(c.color)}" placeholder="Ej: Gris">
+            </div>
+          </div>
+          <div class="field">
+            <label for="f-precio">Precio cotizado</label>
+            <input id="f-precio" class="input" name="precio" inputmode="numeric" value="${c.precio ? esc(Number(c.precio).toLocaleString('es-CO')) : ''}" placeholder="Ej: 109.990.000" data-precio>
+          </div>
+          <div class="field">
+            <span class="label">Forma de pago</span>
+            <div class="chips chips-wrap" data-pagos>
+              ${FORMAS_PAGO.map((p) => `<button type="button" class="chip" data-pago="${p.id}" aria-pressed="${c.formaPago === p.id}">${esc(p.nombre)}</button>`).join('')}
+            </div>
+            <span class="hint" data-hint-credito ${c.formaPago === 'credito' ? '' : 'hidden'}>En la ficha tendrás la lista de documentos del crédito.</span>
+          </div>
+          <div class="field">
+            <label class="hstack" style="cursor:pointer">
+              <span class="switch"><input type="checkbox" data-tiene-retoma ${c.retoma ? 'checked' : ''}><span></span></span>
+              <span class="label">Tiene carro para retoma</span>
+            </label>
+            <input class="input" name="retoma" value="${esc(c.retoma === 'Sí' ? '' : c.retoma)}" placeholder="¿Cuál? Ej: Chevrolet Spark 2018" data-retoma ${c.retoma ? '' : 'hidden'}>
+          </div>
+        </details>
+
         <div class="field">
           <label for="f-notas">Notas</label>
           <textarea id="f-notas" class="textarea" name="notas" rows="4" placeholder="Color preferido, forma de pago, retoma, familia…">${esc(c.notas)}</textarea>
@@ -135,6 +168,25 @@ export function abrirFormularioCliente(id, { alGuardar, campos } = {}) {
       el.querySelectorAll('[data-rapidos] .chip').forEach((b) => b.addEventListener('click', () => {
         f.proximoSeguimiento.value = b.dataset.dias ? sumarDias(hoy(), Number(b.dataset.dias)) : '';
       }));
+
+      // Negociación
+      let formaPago = c.formaPago;
+      el.querySelectorAll('[data-pago]').forEach((b) => b.addEventListener('click', () => {
+        formaPago = formaPago === b.dataset.pago ? '' : b.dataset.pago; // tocar de nuevo la quita
+        el.querySelectorAll('[data-pago]').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.pago === formaPago)));
+        el.querySelector('[data-hint-credito]').hidden = formaPago !== 'credito';
+      }));
+      const precio = el.querySelector('[data-precio]');
+      precio.addEventListener('input', () => {
+        const n = Number(precio.value.replace(/\D/g, ''));
+        precio.value = n ? n.toLocaleString('es-CO') : '';
+      });
+      const tieneRetoma = el.querySelector('[data-tiene-retoma]');
+      tieneRetoma.addEventListener('change', () => {
+        el.querySelector('[data-retoma]').hidden = !tieneRetoma.checked;
+        if (tieneRetoma.checked) el.querySelector('[data-retoma]').focus();
+      });
+      if (negociacion) setTimeout(() => el.querySelector('[data-negociacion]').scrollIntoView({ block: 'start', behavior: 'smooth' }), 150);
 
       // Avisar si el teléfono ya existe
       const tel = f.telefono;
@@ -171,7 +223,16 @@ export function abrirFormularioCliente(id, { alGuardar, campos } = {}) {
           fechaCompra: f.fechaCompra.value,
           proximoSeguimiento: f.proximoSeguimiento.value,
           notas: f.notas.value.trim(),
+          version: f.version.value.trim(),
+          color: f.color.value.trim(),
+          precio: Number(f.precio.value.replace(/\D/g, '')) || '',
+          formaPago,
+          retoma: tieneRetoma.checked ? (f.retoma.value.trim() || 'Sí') : '',
         });
+        // Al elegir crédito, se arma la lista de documentos
+        if (formaPago === 'credito' && !c.documentos?.length) {
+          c.documentos = DOCUMENTOS_CREDITO.map((nombre, i) => ({ id: `doc_${Date.now().toString(36)}_${i}`, nombre, listo: false }));
+        }
         if (existente && etapaAnterior !== etapa) {
           c.historial.unshift({ id: 'h_' + Date.now().toString(36), fecha: new Date().toISOString(), tipo: 'etapa', texto: etapa });
         }

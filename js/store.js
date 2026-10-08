@@ -14,7 +14,7 @@ import { PLANTILLAS_POR_DEFECTO, REGLAS_POR_DEFECTO, MODELOS_POR_DEFECTO } from 
 import { uid } from './util.js';
 
 const CLAVE = 'misclientes:datos';
-export const SCHEMA = 1;
+export const SCHEMA = 2;
 const MAX_ENVIOS = 5000; // historial global de envíos que se conserva
 
 // Paso de migración: recibe los datos del schema N-1 y los deja en schema N.
@@ -22,7 +22,29 @@ const MAX_ENVIOS = 5000; // historial global de envíos que se conserva
 //   2: (d) => { d.clientes.forEach(c => c.ciudad ??= ''); return d; },
 const MIGRACIONES = {
   1: (d) => d,
+  // 1.5.0: citas, datos de negociación y plantillas nuevas
+  2: (d) => {
+    d.citas = Array.isArray(d.citas) ? d.citas : [];
+    (Array.isArray(d.clientes) ? d.clientes : []).forEach(completarCliente);
+    d.plantillas = Array.isArray(d.plantillas) ? d.plantillas : [];
+    for (const id of ['tpl-cita-confirmar', 'tpl-cita-hoy', 'tpl-docs']) {
+      const p = PLANTILLAS_POR_DEFECTO.find((x) => x.id === id);
+      if (p && !d.plantillas.some((x) => x.id === id)) d.plantillas.push({ ...p });
+    }
+    return d;
+  },
 };
+
+/** Campos de negociación que pueden faltar en clientes viejos. */
+function completarCliente(c) {
+  c.version ??= '';
+  c.color ??= '';
+  c.precio ??= '';
+  c.formaPago ??= '';
+  c.retoma ??= '';
+  c.documentos = Array.isArray(c.documentos) ? c.documentos : [];
+  return c;
+}
 
 function ajustesPorDefecto() {
   return {
@@ -51,6 +73,7 @@ function datosVacios() {
     programados: [],
     reglas: structuredClone(REGLAS_POR_DEFECTO),
     envios: [],
+    citas: [],
   };
 }
 
@@ -69,7 +92,8 @@ export function migrar(d) {
   d.plantillas = Array.isArray(d.plantillas) ? d.plantillas : base.plantillas;
   d.programados = Array.isArray(d.programados) ? d.programados : [];
   d.envios = Array.isArray(d.envios) ? d.envios : [];
-  d.clientes.forEach((c) => { c.historial = Array.isArray(c.historial) ? c.historial : []; });
+  d.citas = Array.isArray(d.citas) ? d.citas : [];
+  d.clientes.forEach((c) => { c.historial = Array.isArray(c.historial) ? c.historial : []; completarCliente(c); });
   d.schema = SCHEMA;
   return d;
 }
@@ -101,6 +125,8 @@ function escribir() {
 }
 
 datos = leer();
+// Guardar de una vez los datos ya migrados (si venían de una versión anterior)
+try { if (localStorage.getItem(CLAVE)) escribir(); } catch { /* sin almacenamiento */ }
 
 // Pedir al navegador que no borre los datos por falta de espacio
 navigator.storage?.persist?.().catch(() => {});
@@ -133,6 +159,7 @@ export function nuevoCliente(campos = {}) {
     nombre: '', telefono: '', email: '', cumple: '',
     etapa: 'nuevo', origen: '', vehiculoInteres: '', vehiculoComprado: '', fechaCompra: '',
     proximoSeguimiento: '', notas: '', historial: [],
+    version: '', color: '', precio: '', formaPago: '', retoma: '', documentos: [],
     creado: new Date().toISOString(), actualizado: new Date().toISOString(),
     ...campos,
   };
@@ -168,6 +195,7 @@ export function eliminarClientesDonde(condicion) {
   const borrar = new Set(datos.clientes.filter(condicion).map((c) => c.id));
   datos.clientes = datos.clientes.filter((c) => !borrar.has(c.id));
   datos.envios = datos.envios.filter((e) => !borrar.has(e.clienteId));
+  datos.citas = datos.citas.filter((x) => !borrar.has(x.clienteId));
   datos.programados.forEach((p) => { if (p.destino?.ids) p.destino.ids = p.destino.ids.filter((id) => !borrar.has(id)); });
   cambio();
   return borrar.size;
@@ -204,6 +232,26 @@ export function cambiarEtapa(clienteId, etapa) {
   }
   c.historial.unshift({ id: uid('h_'), fecha: new Date().toISOString(), tipo: 'etapa', texto: etapa });
   c.actualizado = new Date().toISOString();
+  cambio();
+}
+
+// --- Citas --------------------------------------------------------------------
+// { id, clienteId, tipo, fecha 'AAAA-MM-DD', hora 'HH:MM', vehiculo, notas,
+//   estado: 'pendiente' | 'hecha' | 'cancelada', creado }
+export const citas = () => datos.citas;
+export const cita = (id) => datos.citas.find((x) => x.id === id);
+
+export function guardarCita(ct) {
+  const nueva = !ct.id;
+  if (nueva) { ct.id = uid('cita_'); ct.creado = new Date().toISOString(); ct.estado = 'pendiente'; }
+  const i = datos.citas.findIndex((x) => x.id === ct.id);
+  if (i >= 0) datos.citas[i] = ct; else datos.citas.push(ct);
+  cambio();
+  return ct;
+}
+
+export function eliminarCita(id) {
+  datos.citas = datos.citas.filter((x) => x.id !== id);
   cambio();
 }
 

@@ -77,10 +77,11 @@ function cabeceraCliente(c, extra = '') {
  * @param {object} [o]
  * @param {object} [o.item]        pendiente de engine.js (si viene de "Para hoy")
  * @param {string} [o.plantillaId] plantilla inicial
+ * @param {object} [o.extra]       variables extra, p. ej. de una cita ({cita_hora}…)
  */
-export function abrirMensaje(c, { item, plantillaId } = {}) {
+export function abrirMensaje(c, { item, plantillaId, extra = {} } = {}) {
   if (!c.telefono) { aviso('Este cliente no tiene teléfono', { icono: 'x' }); return; }
-  const inicial = item ? textoDe(item) : plantillaId ? llenarTexto(store.plantilla(plantillaId)?.texto, c) : '';
+  const inicial = item ? textoDe(item) : plantillaId ? llenarTexto(store.plantilla(plantillaId)?.texto, c, extra) : '';
   const esSeguimiento = item?.tipo === 'seguimiento';
 
   abrirHoja({
@@ -111,7 +112,7 @@ export function abrirMensaje(c, { item, plantillaId } = {}) {
       ta.addEventListener('input', actualizar);
       el.querySelector('#m-tpl')?.addEventListener('change', (e) => {
         const p = store.plantilla(e.target.value);
-        ta.value = p ? llenarTexto(p.texto, c) : '';
+        ta.value = p ? llenarTexto(p.texto, c, extra) : '';
         actualizar();
       });
       if (esSeguimiento) conectarSiguiente(el);

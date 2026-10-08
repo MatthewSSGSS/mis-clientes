@@ -4,7 +4,7 @@
 // este es el archivo. Cada vez que publiques cambios, sube APP_VERSION.
 // =============================================================================
 
-export const APP_VERSION = '1.4.1';
+export const APP_VERSION = '1.5.0';
 
 // Etapas del proceso de venta. El orden importa (así se muestran).
 // color: blue | violet | amber | green | red | pink | gray
@@ -26,6 +26,31 @@ export const CATEGORIAS = [
   { id: 'ofertas',     nombre: 'Ofertas',           icon: 'tag',      color: 'red' },
   { id: 'postventa',   nombre: 'Postventa',         icon: 'wrench',   color: 'green' },
   { id: 'especiales',  nombre: 'Fechas especiales', icon: 'sparkles', color: 'violet' },
+];
+
+// Tipos de cita. icon = id de un <symbol> en index.html
+export const TIPOS_CITA = [
+  { id: 'prueba',   nombre: 'Prueba de manejo', icon: 'car',      color: 'blue' },
+  { id: 'visita',   nombre: 'Visita',           icon: 'home',     color: 'violet' },
+  { id: 'entrega',  nombre: 'Entrega',          icon: 'star',     color: 'green' },
+  { id: 'llamada',  nombre: 'Llamada',          icon: 'phone',    color: 'amber' },
+  { id: 'otro',     nombre: 'Otra cita',        icon: 'calendar', color: 'gray' },
+];
+
+// Formas de pago de una negociación
+export const FORMAS_PAGO = [
+  { id: 'contado', nombre: 'Contado' },
+  { id: 'credito', nombre: 'Crédito' },
+  { id: 'leasing', nombre: 'Leasing' },
+];
+
+// Documentos que se piden para un crédito (se pueden agregar más en cada cliente)
+export const DOCUMENTOS_CREDITO = [
+  'Cédula',
+  'Certificado laboral o de ingresos',
+  'Extractos bancarios (3 meses)',
+  'Declaración de renta (si aplica)',
+  'Formulario de crédito firmado',
 ];
 
 export const ORIGENES = ['Vitrina', 'Referido', 'Redes sociales', 'Llamada', 'WhatsApp', 'Evento', 'Otro'];
@@ -63,6 +88,11 @@ export const VARIABLES = [
   { clave: '{nombre_completo}', desc: 'Nombre completo' },
   { clave: '{vehiculo}',        desc: 'Vehículo comprado o de interés' },
   { clave: '{mi_nombre}',       desc: 'Tu nombre' },
+  { clave: '{precio}',          desc: 'Precio cotizado' },
+  { clave: '{documentos_pendientes}', desc: 'Lista de documentos que faltan' },
+  { clave: '{cita}',            desc: 'Tipo de cita (solo en citas)' },
+  { clave: '{cita_fecha}',      desc: 'Día de la cita (solo en citas)' },
+  { clave: '{cita_hora}',       desc: 'Hora de la cita (solo en citas)' },
 ];
 
 // Plantillas que vienen con la app. Los ids deben ser únicos y no cambiar
@@ -83,6 +113,12 @@ export const PLANTILLAS_POR_DEFECTO = [
     texto: 'Hola {nombre}, te recuerdo nuestra cita para la prueba de manejo del {vehiculo}. ¡Te espero! Si necesitas cambiar la hora, me avisas. {mi_nombre}' },
   { id: 'tpl-rec-2', categoria: 'recordatorio', titulo: 'Documentos pendientes',
     texto: 'Hola {nombre}, para avanzar con tu {vehiculo} solo nos faltan algunos documentos. ¿Cuándo te queda fácil enviármelos? 📄' },
+  { id: 'tpl-cita-confirmar', categoria: 'recordatorio', titulo: 'Confirmar cita',
+    texto: 'Hola {nombre}, te confirmo nuestra cita: {cita} el {cita_fecha} a las {cita_hora}. ¡Te espero! Si necesitas cambiar la hora, me avisas. {mi_nombre}' },
+  { id: 'tpl-cita-hoy', categoria: 'recordatorio', titulo: 'Cita de hoy',
+    texto: '¡Hola {nombre}! Te recuerdo que hoy a las {cita_hora} tenemos tu {cita}. ¡Nos vemos! 🚗 {mi_nombre}' },
+  { id: 'tpl-docs', categoria: 'recordatorio', titulo: 'Pedir documentos que faltan',
+    texto: 'Hola {nombre}, para avanzar con el crédito de tu {vehiculo} me hacen falta estos documentos:\n{documentos_pendientes}\n¿Me los puedes enviar por aquí? 📄 Gracias, {mi_nombre}' },
   // Ofertas
   { id: 'tpl-ofe-1', categoria: 'ofertas', titulo: 'Oferta del mes',
     texto: '¡Hola {nombre}! 🔥 Este mes tenemos condiciones especiales: bonos, tasas preferenciales y opciones de retoma. ¿Quieres que te cuente los detalles?' },
@@ -110,6 +146,7 @@ export const REGLAS_POR_DEFECTO = {
   seguimiento:   { activa: true, plantillaId: 'tpl-seg-1' },
   aniversario:   { activa: true, plantillaId: 'tpl-post-aniv' },
   mantenimiento: { activa: true, plantillaId: 'tpl-post-mant', meses: 6 },
+  citas:         { activa: true, plantillaId: 'tpl-cita-confirmar' },
 };
 
 // Cuántos días hacia atrás se siguen mostrando mensajes que no enviaste
@@ -117,6 +154,7 @@ export const DIAS_ATRASO = {
   cumpleanos: 1,
   aniversario: 3,
   mantenimiento: 7,
+  cita: 1,
   programado: 14,
 };
 // Cuántos días hacia adelante muestra "Próximos días"

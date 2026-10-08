@@ -376,6 +376,12 @@ export async function exportarExcel() {
     'Fecha de compra': c.fechaCompra,
     Origen: c.origen,
     'Próximo seguimiento': c.proximoSeguimiento,
+    'Versión': c.version || '',
+    Color: c.color || '',
+    'Precio cotizado': Number(c.precio) || '',
+    'Forma de pago': ({ contado: 'Contado', credito: 'Crédito', leasing: 'Leasing' })[c.formaPago] || '',
+    Retoma: c.retoma || '',
+    'Documentos pendientes': (c.documentos || []).filter((d) => !d.listo).map((d) => d.nombre).join(', '),
     Notas: c.notas,
     'Registrado': (c.creado || '').slice(0, 10),
   }));
@@ -404,8 +410,11 @@ export function cargarEjemplo() {
   const h = hoy();
   const mmdd = (f) => f.slice(5);
   const datos = [
-    { nombre: 'Laura Restrepo', vehiculoInteres: 'Kicks', etapa: 'cotizado', cumple: mmdd(h), proximoSeguimiento: h, origen: 'Vitrina', notas: 'Le gustó el color gris. Va a pagar con crédito.' },
-    { nombre: 'Andrés Felipe Ruiz', vehiculoInteres: 'Frontier', etapa: 'negociando', proximoSeguimiento: sumarDias(h, -2), origen: 'Referido', notas: 'Tiene retoma: Hilux 2017.' },
+    { nombre: 'Laura Restrepo', vehiculoInteres: 'Kicks', etapa: 'cotizado', cumple: mmdd(h), proximoSeguimiento: h, origen: 'Vitrina', notas: 'Le gustó el color gris.',
+      version: 'Exclusive CVT', color: 'Gris', precio: 109990000, formaPago: 'credito',
+      documentos: [['Cédula', true], ['Certificado laboral o de ingresos', true], ['Extractos bancarios (3 meses)', false], ['Formulario de crédito firmado', false]].map(([nombre, listo], k) => ({ id: `doc_ej_${k}`, nombre, listo })) },
+    { nombre: 'Andrés Felipe Ruiz', vehiculoInteres: 'Frontier', etapa: 'negociando', proximoSeguimiento: sumarDias(h, -2), origen: 'Referido',
+      version: 'LE 4x4 AT', color: 'Blanco', precio: 189990000, formaPago: 'contado', retoma: 'Toyota Hilux 2017' },
     { nombre: 'Carolina Mejía', vehiculoComprado: 'X-Trail', etapa: 'vendido', fechaCompra: sumarMeses(h, -12), origen: 'Redes sociales' },
     { nombre: 'Jorge Iván Pardo', vehiculoComprado: 'Versa', etapa: 'vendido', fechaCompra: sumarMeses(h, -6), cumple: mmdd(sumarDias(h, 3)) },
     { nombre: 'Natalia Gómez', vehiculoInteres: 'Sentra', etapa: 'nuevo', proximoSeguimiento: sumarDias(h, 1), origen: 'WhatsApp' },
@@ -420,6 +429,10 @@ export function cargarEjemplo() {
     historial: [{ id: uid('h_'), fecha: new Date().toISOString(), tipo: 'creado', texto: 'Cliente de ejemplo' }],
   }));
   store.agregarClientes(lista);
+  // Citas de ejemplo: una prueba de manejo mañana (para ver la confirmación de hoy) y una visita hoy
+  store.guardarCita({ clienteId: lista[0].id, tipo: 'prueba', fecha: sumarDias(h, 1), hora: '10:00', vehiculo: 'Kicks Exclusive', notas: 'Viene con el esposo.' });
+  store.guardarCita({ clienteId: lista[1].id, tipo: 'visita', fecha: h, hora: '16:30', vehiculo: 'Frontier', notas: 'Traer la Hilux para avalúo.' });
+  store.guardarCita({ clienteId: lista[4].id, tipo: 'prueba', fecha: sumarDias(h, 3), hora: '11:00', vehiculo: 'Sentra', notas: '' });
 }
 
 export const hayEjemplos = () => store.clientes().some((c) => c.ejemplo);

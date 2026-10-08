@@ -6,8 +6,9 @@
 
 import * as store from '../store.js';
 import * as wa from '../whatsapp.js';
-import { ETAPAS, FOTOS } from '../config.js';
-import { proximos, pendientesHoy } from '../engine.js';
+import { ETAPAS, FOTOS, FORMAS_PAGO, DOCUMENTOS_CREDITO } from '../config.js';
+import { proximos, pendientesHoy, dinero, documentosPendientes } from '../engine.js';
+import { citasDeCliente, filaCita, conectarCitas, abrirFormularioCita } from '../citas.js';
 import { abrirMensaje } from '../enviar.js';
 import { abrirFormularioCliente } from '../cliente-form.js';
 import { abrirFormularioProgramado } from './mensajes.js';
@@ -49,7 +50,7 @@ export function render(root, { params, navegar, puedeVolver }) {
         <div class="quick-actions">
           <button class="qa wa" data-wa>${icon('chat')} WhatsApp</button>
           <a class="qa" href="${esc(wa.enlaceLlamada(c))}">${icon('phone')} Llamar</a>
-          <button class="qa" data-programar>${icon('calendar')} Programar</button>
+          <button class="qa" data-cita>${icon('calendar')} Cita</button>
           <button class="qa" data-nota>${icon('note')} Nota</button>
         </div>
       </div>
@@ -88,9 +89,13 @@ export function render(root, { params, navegar, puedeVolver }) {
         </div>
       </section>
 
-      ${pendientes.length ? `
+      ${seccionCitas(c)}
+
+      ${seccionNegociacion(c)}
+
       <section class="section">
-        <div class="section-head"><h2 class="section-title">Mensajes que vienen</h2></div>
+        <div class="section-head"><h2 class="section-title">Mensajes que vienen</h2><button class="link-btn" data-programar>+ Programar</button></div>
+        ${pendientes.length ? `
         <div class="grouped">
           ${pendientes.slice(0, 6).map((it) => `
             <button class="g-row" data-pend="${esc(it.key)}">
@@ -98,8 +103,8 @@ export function render(root, { params, navegar, puedeVolver }) {
               <div class="li-body"><div class="li-title">${esc(it.titulo)}</div><div class="li-sub">${esc(fechaLarga(it.fecha))}</div></div>
               <span class="li-meta ${it.fecha < h ? 'late' : it.fecha === h ? 'today' : ''}">${esc(relativo(it.fecha))}</span>
             </button>`).join('')}
-        </div>
-      </section>` : ''}
+        </div>` : '<p class="small muted">No hay mensajes programados para este cliente.</p>'}
+      </section>
 
       <section class="section">
         <div class="section-head"><h2 class="section-title">Datos</h2></div>
@@ -149,6 +154,26 @@ export function render(root, { params, navegar, puedeVolver }) {
   root.querySelector('[data-programar]').addEventListener('click', () =>
     abrirFormularioProgramado(null, { destino: { tipo: 'clientes', ids: [c.id] }, titulo: `Mensaje para ${primerNombre(c.nombre)}`, categoria: 'recordatorio' }));
   root.querySelectorAll('[data-nota]').forEach((b) => b.addEventListener('click', () => abrirNota(c)));
+  root.querySelectorAll('[data-cita]').forEach((b) => b.addEventListener('click', () => abrirFormularioCita({ clienteId: c.id })));
+  conectarCitas(root);
+
+  // Negociación y documentos
+  root.querySelectorAll('[data-editar-neg]').forEach((b) => b.addEventListener('click', () => abrirFormularioCliente(c.id, { negociacion: true })));
+  const conDocs = (fn) => { const x = store.cliente(c.id); if (!x) return; fn(x); store.guardarCliente(x); };
+  root.querySelectorAll('[data-doc]').forEach((cb) => cb.addEventListener('change', () =>
+    conDocs((x) => { const d = x.documentos.find((y) => y.id === cb.dataset.doc); if (d) d.listo = cb.checked; })));
+  root.querySelectorAll('[data-doc-borrar]').forEach((b) => b.addEventListener('click', () =>
+    conDocs((x) => { x.documentos = x.documentos.filter((y) => y.id !== b.dataset.docBorrar); })));
+  root.querySelector('[data-doc-form]')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const nombre = e.target.doc.value.trim();
+    e.target.doc.blur(); // para que la lista se redibuje de inmediato
+    if (nombre) conDocs((x) => { x.documentos.push({ id: `doc_${Date.now().toString(36)}`, nombre, listo: false }); });
+  });
+  root.querySelector('[data-doc-pedir]')?.addEventListener('click', () => abrirMensaje(store.cliente(c.id), { plantillaId: 'tpl-docs' }));
+  root.querySelector('[data-doc-iniciar]')?.addEventListener('click', () => conDocs((x) => {
+    x.documentos = DOCUMENTOS_CREDITO.map((nombre, i) => ({ id: `doc_${Date.now().toString(36)}_${i}`, nombre, listo: false }));
+  }));
 
   root.querySelectorAll('[data-etapa]').forEach((b) => b.addEventListener('click', () => {
     const nueva = b.dataset.etapa;
@@ -191,6 +216,86 @@ export function render(root, { params, navegar, puedeVolver }) {
   });
 }
 
+// --- Citas del cliente ---------------------------------------------------------
+function seccionCitas(c) {
+  const todas = citasDeCliente(c.id);
+  const pendientes = todas.filter((ct) => ct.estado === 'pendiente');
+  const pasadas = todas.filter((ct) => ct.estado !== 'pendiente').slice(-2).reverse();
+  return `
+    <section class="section">
+      <div class="section-head"><h2 class="section-title">Citas</h2><button class="link-btn" data-cita>+ Agendar</button></div>
+      ${todas.length ? `<div class="list">
+        ${[...pendientes, ...pasadas].map((ct) => filaCita(ct, { mostrarCliente: false, mostrarFecha: true })).join('')}
+      </div>` : `
+      <button class="card card-pad meta-card meta-vacia" data-cita>
+        <img class="thumb" src="img/mini/xterra-montana-sq.jpg" alt="" loading="lazy">
+        <div class="li-body"><b>Agendar prueba de manejo o visita</b><span class="small muted">Te recuerda confirmarle el día antes</span></div>
+        ${icon('chev-r', 'chev')}
+      </button>`}
+    </section>`;
+}
+
+// --- Negociación y documentos del crédito -----------------------------------------
+function seccionNegociacion(c) {
+  const hayDatos = c.version || c.color || c.precio || c.formaPago || c.retoma;
+  const pago = FORMAS_PAGO.find((p) => p.id === c.formaPago)?.nombre;
+  const docs = c.documentos || [];
+  const listos = docs.filter((d) => d.listo).length;
+  const faltan = documentosPendientes(c).length;
+
+  const tarjeta = hayDatos ? `
+    <div class="card neg-card">
+      <div class="neg-precio">
+        <span class="small muted">Precio cotizado</span>
+        <b>${c.precio ? esc(dinero(c.precio)) : '—'}</b>
+        ${pago ? `<span class="pill" data-color="${c.formaPago === 'credito' ? 'violet' : 'green'}">${esc(pago)}</span>` : ''}
+      </div>
+      <div class="neg-grid">
+        ${[
+          ['car', 'Vehículo', [c.vehiculoInteres || c.vehiculoComprado, c.version].filter(Boolean).join(' · ')],
+          ['sparkles', 'Color', c.color],
+          ['repeat', 'Retoma', c.retoma],
+        ].filter(([, , v]) => v).map(([ic, k, v]) => `<div class="neg-item">${icon(ic, 'i-sm')}<div><span class="kv-k">${k}</span><span class="kv-v">${esc(v)}</span></div></div>`).join('')}
+      </div>
+    </div>` : `
+    <button class="card card-pad meta-card meta-vacia" data-editar-neg>
+      <img class="thumb" src="img/mini/frontier-negra-sq.jpg" alt="" loading="lazy">
+      <div class="li-body"><b>Agregar datos de la negociación</b><span class="small muted">Versión, precio, contado o crédito, retoma</span></div>
+      ${icon('chev-r', 'chev')}
+    </button>`;
+
+  const documentos = c.formaPago === 'credito' || docs.length ? `
+    <div class="card card-pad docs mt-12">
+      <div class="hstack">
+        <div class="li-body"><b>Documentos del crédito</b><span class="small muted">${docs.length ? `${listos} de ${docs.length} recibidos` : 'Sin lista todavía'}</span></div>
+        ${!docs.length ? '<button class="btn btn-sm btn-outline" data-doc-iniciar>Crear lista</button>' : ''}
+      </div>
+      ${docs.length ? `
+      <div class="meta-bar mt-12 ${faltan ? '' : 'ok'}"><span style="width:${Math.max(3, (listos / docs.length) * 100)}%"></span></div>
+      <div class="doc-list mt-8">
+        ${docs.map((d) => `
+          <label class="doc-row ${d.listo ? 'listo' : ''}">
+            <input type="checkbox" data-doc="${esc(d.id)}" ${d.listo ? 'checked' : ''}>
+            <span>${esc(d.nombre)}</span>
+            <button type="button" class="btn btn-ghost btn-icon btn-sm" data-doc-borrar="${esc(d.id)}" aria-label="Quitar ${esc(d.nombre)}">${icon('x', 'i-sm')}</button>
+          </label>`).join('')}
+      </div>
+      <form class="tools-row mt-8" data-doc-form>
+        <input class="input" name="doc" placeholder="Agregar otro documento" style="min-height:40px">
+        <button class="btn btn-outline btn-icon" aria-label="Agregar">${icon('plus')}</button>
+      </form>
+      ${faltan ? `<button class="btn btn-wa btn-block mt-12" data-doc-pedir>${icon('chat')} Pedirle los ${faltan} que faltan por WhatsApp</button>`
+        : `<p class="small mt-12" style="color:var(--c-green);font-weight:700">${icon('check', 'i-sm')} ¡Todos los documentos recibidos!</p>`}` : ''}
+    </div>` : '';
+
+  return `
+    <section class="section">
+      <div class="section-head"><h2 class="section-title">Negociación</h2>${hayDatos ? '<button class="link-btn" data-editar-neg>Editar</button>' : ''}</div>
+      ${tarjeta}
+      ${documentos}
+    </section>`;
+}
+
 const kv = (ic, k, v) => `
   <div class="kv-row">${icon(ic)}<div><div class="kv-k">${esc(k)}</div><div class="kv-v">${esc(v)}</div></div></div>`;
 
@@ -206,6 +311,9 @@ function itemHistorial(hi) {
   } else if (hi.tipo === 'etapa') {
     const e = infoEtapa(hi.texto);
     color = e.color; titulo = `Pasó a "${e.nombre}"`;
+  } else if (hi.tipo === 'cita') {
+    color = /cancelada/.test(hi.titulo || '') ? 'gray' : /realizada/.test(hi.titulo || '') ? 'green' : 'blue';
+    titulo = hi.titulo || 'Cita'; texto = hi.texto || '';
   } else if (hi.tipo === 'creado') {
     color = 'blue'; titulo = 'Cliente registrado';
   } else {
