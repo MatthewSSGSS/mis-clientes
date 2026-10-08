@@ -214,6 +214,7 @@ button { cursor: pointer; }
     font-size: 15px; font-weight: 600; text-align: left;
   }
   .nav .nav-tema:hover { background: var(--surface-2); }
+  .nav .nav-salir { order: 12; margin-top: 0; }
   .nav-brand img { border-radius: 10px; }
   .nav a {
     flex-direction: row; gap: 12px; font-size: 15px; padding: 11px 12px;
@@ -903,6 +904,25 @@ button.meta-card { display: flex; align-items: center; gap: 12px; width: 100%; t
 .feature-list { display: grid; gap: 10px; margin: 0 0 26px; padding: 0; list-style: none; }
 .feature-list li { display: flex; gap: 10px; align-items: center; font-size: 15px; color: rgba(255,255,255,.9); }
 .feature-list .i { color: #ff5a7d; }
+
+/* Fila que pasa sus botones abajo si no caben */
+.g-row.g-wrap { flex-wrap: wrap; }
+.g-row.g-wrap .li-body { flex: 1 1 180px; }
+.row-actions { display: flex; gap: 8px; margin-left: auto; }
+
+/* Pantalla de entrada (sesión cerrada) */
+.entrada { z-index: 65; }
+.pin-input { text-align: center; font-size: 28px; letter-spacing: .5em; font-weight: 800; }
+.entrada-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 18px; margin-top: 18px; }
+.link-claro { border: 0; background: none; color: rgba(255,255,255,.75); font-size: 14px; font-weight: 600; text-decoration: underline; padding: 6px 2px; }
+.link-claro:hover { color: #fff; }
+.entrada-aviso {
+  margin-top: 16px; padding: 14px 16px; border-radius: 16px; font-size: 14px;
+  background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.18); color: rgba(255,255,255,.9);
+}
+.entrada-aviso p { margin-top: 6px; }
+.welcome .btn-glass { background: rgba(255,255,255,.16); color: #fff; }
+.welcome .field-error { color: #ff8fa6; }
 
 /* Ajustes */
 .settings-group { margin-top: 24px; }

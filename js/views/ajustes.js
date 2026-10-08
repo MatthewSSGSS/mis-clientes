@@ -11,6 +11,7 @@ import {
 } from '../importar.js';
 import { importarDocumento, escribirLista } from '../documentos.js';
 import { abrirRecordatorio, textoRecordatorio, estadoInsignia, activarInsignia } from '../recordatorios.js';
+import { tienePin, configurarPin, quitarPin } from '../sesion.js';
 import { icon, abrirHoja, cerrarHoja, confirmar, aviso, categoria, avatar, botonTema, botonInicio } from '../ui.js';
 import { esc, cuando, plural, esIOS, esAndroid, esInstalada, debounce } from '../util.js';
 
@@ -150,6 +151,23 @@ export function render(root) {
       </div>
 
       <div class="settings-group">
+        <h2>Sesión y seguridad</h2>
+        <div class="grouped">
+          <div class="g-row g-wrap">
+            <span class="icon-badge" data-color="${tienePin() ? 'green' : 'gray'}">${icon('lock')}</span>
+            <div class="li-body"><b>PIN de acceso</b>
+              <span class="small muted">${tienePin() ? 'Activado: se pide al entrar después de cerrar sesión' : 'Protege tus clientes con un PIN de 4 números'}</span></div>
+            <div class="row-actions">
+              ${tienePin()
+                ? '<button class="btn btn-sm btn-outline" data-pin>Cambiar</button><button class="btn btn-sm btn-ghost" data-pin-quitar>Quitar</button>'
+                : '<button class="btn btn-sm btn-primary" data-pin>Crear PIN</button>'}
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-outline btn-block btn-lg mt-12" data-cerrar-sesion>${icon('logout')} Cerrar sesión</button>
+      </div>
+
+      <div class="settings-group">
         <h2>Zona de cuidado</h2>
         <button class="btn btn-danger btn-block" data-borrar-todo>${icon('trash')} Borrar todos mis datos</button>
       </div>
@@ -175,6 +193,10 @@ export function render(root) {
   root.querySelector('[data-respaldo]').addEventListener('click', () => guardarRespaldo());
   root.querySelector('[data-restaurar]').addEventListener('click', () => restaurarRespaldo());
   root.querySelector('[data-recordatorio]').addEventListener('click', () => abrirRecordatorio());
+  root.querySelector('[data-pin]').addEventListener('click', () => configurarPin());
+  root.querySelector('[data-pin-quitar]')?.addEventListener('click', async () => {
+    if (await confirmar({ titulo: '¿Quitar el PIN?', texto: 'Al cerrar sesión ya no se pedirá PIN para entrar.', si: 'Quitar PIN' })) quitarPin();
+  });
   root.querySelector('[data-insignia]')?.addEventListener('click', () => activarInsignia());
   root.querySelector('[data-imp-doc]').addEventListener('click', () => importarDocumento());
   root.querySelector('[data-imp-lista]').addEventListener('click', () => escribirLista());
@@ -203,17 +225,17 @@ function instrucciones() {
   const ios = `
     <p class="small" style="font-weight:700;margin-bottom:10px">iPhone (Safari)</p>
     <ol class="install-steps">
-      <li>Abre este link en <b>Safari</b>.</li>
-      <li>Toca el botón <b>Compartir</b> (cuadrado con flecha hacia arriba).</li>
-      <li>Elige <b>"Agregar a inicio"</b> y luego <b>Agregar</b>.</li>
-      <li>Abre la app desde el ícono nuevo en tu pantalla.</li>
+      <li><span>Abre este link en <b>Safari</b>.</span></li>
+      <li><span>Toca el botón <b>Compartir</b> (cuadrado con flecha hacia arriba).</span></li>
+      <li><span>Elige <b>"Agregar a inicio"</b> y luego <b>Agregar</b>.</span></li>
+      <li><span>Abre la app desde el ícono nuevo en tu pantalla.</span></li>
     </ol>`;
   const android = `
     <p class="small" style="font-weight:700;margin-bottom:10px">Android (Chrome)</p>
     <ol class="install-steps">
-      <li>Abre este link en <b>Chrome</b>.</li>
-      <li>Toca el menú <b>⋮</b> (arriba a la derecha).</li>
-      <li>Elige <b>"Instalar app"</b> o <b>"Agregar a pantalla principal"</b>.</li>
+      <li><span>Abre este link en <b>Chrome</b>.</span></li>
+      <li><span>Toca el menú <b>⋮</b> (arriba a la derecha).</span></li>
+      <li><span>Elige <b>"Instalar app"</b> o <b>"Agregar a pantalla principal"</b>.</span></li>
     </ol>`;
   if (esIOS) return ios;
   if (esAndroid) return android;

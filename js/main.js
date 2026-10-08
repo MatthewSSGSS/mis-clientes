@@ -18,6 +18,7 @@ import { abrirFormularioCliente } from './cliente-form.js';
 import { pendientesHoy } from './engine.js';
 import { modoSerie } from './enviar.js';
 import { menuImportar } from './documentos.js';
+import { sesionCerrada, cerrarSesion, mostrarEntrada } from './sesion.js';
 import { actualizarInsignia } from './recordatorios.js';
 import { hojaAbierta, cerrarHoja, aviso, icon, temaOscuro } from './ui.js';
 import { hoy as fechaHoy, primerNombre } from './util.js';
@@ -47,6 +48,7 @@ export function navegar(hash) {
 }
 
 function render() {
+  if (sesionCerrada()) { $view.replaceChildren(); return; } // nada visible con la sesión cerrada
   const ruta = leerRuta();
   const { vista, nav } = RUTAS[ruta.nombre];
   const mismaRuta = ruta.clave === rutaActual;
@@ -172,10 +174,19 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   });
 }
 
+// Cerrar sesión (menú lateral en computador; en celular está en Ajustes)
+document.addEventListener('click', (e) => {
+  if (e.target.closest('[data-cerrar-sesion]')) cerrarSesion(() => render());
+});
+
 // --- Arranque ---
 aplicarTema();
 navegaciones = 1;
-render();
-if (!store.ajustes().bienvenidaVista && !store.clientes().length) {
-  mostrarBienvenida(() => render());
+if (sesionCerrada()) {
+  mostrarEntrada(() => render());
+} else {
+  render();
+  if (!store.ajustes().bienvenidaVista && !store.clientes().length) {
+    mostrarBienvenida(() => render());
+  }
 }

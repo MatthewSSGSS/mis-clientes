@@ -56,6 +56,7 @@ js/
   documentos.js       PDF, Word, fotos del cuaderno (OCR) y listas escritas → clientes
   recordatorios.js    Recordatorio diario (calendario) y número de pendientes en el ícono
   citas.js            Citas (pruebas de manejo, visitas, entregas): agendar, lista, hecha, calendario
+  sesion.js           Cerrar sesión, pantalla de entrada y PIN opcional
 cal/                  Eventos .ics del recordatorio diario (generados por tools/generar_calendarios.py)
   ui.js               Piezas visuales: hoja/ventana, avisos, confirmaciones, avatares
   util.js             Fechas, textos y teléfonos

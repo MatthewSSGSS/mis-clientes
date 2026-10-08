@@ -61,6 +61,8 @@ function ajustesPorDefecto() {
     recordatorioHora: 8,    // hora del recordatorio diario en el calendario
     recordatorioDias: 'diario', // 'diario' | 'lunsab'
     recordatorioAgregado: false,
+    sesionCerrada: false,   // pantalla de entrada activa
+    pinHash: '',            // PIN de acceso (hash), vacío = sin PIN
   };
 }
 
@@ -349,6 +351,13 @@ export function borrarTodo() {
   datos = datosVacios();
   Object.assign(datos.ajustes, { nombre, codigoPais, bienvenidaVista: true });
   cambio();
+}
+
+/** Borra absolutamente todo de este dispositivo (vuelve a la bienvenida). */
+export function reiniciar() {
+  try { localStorage.removeItem(CLAVE); } catch { /* sin almacenamiento */ }
+  datos = datosVacios();
+  notificar();
 }
 
 export function marcarRespaldo() {
