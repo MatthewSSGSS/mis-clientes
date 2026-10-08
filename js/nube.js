@@ -80,6 +80,7 @@ export function traducirError(e) {
   if (m.includes('invalid email') || m.includes('unable to validate email') || m.includes('email address') && m.includes('invalid')) return 'Revisa el correo: parece que está mal escrito.';
   if (m.includes('rate limit') || m.includes('too many') || m.includes('security purposes')) return 'Demasiados intentos seguidos. Espera un minuto y vuelve a intentar.';
   if (m.includes('same password') || m.includes('different from the old')) return 'La nueva contraseña debe ser distinta a la anterior.';
+  if (m.includes('sending confirmation') || m.includes('sending recovery') || m.includes('sending') && m.includes('email')) return 'No pudimos enviarte el correo. Intenta de nuevo en unos minutos; si sigue pasando, avísale a quien administra la app.';
   return 'Algo salió mal. Intenta de nuevo.';
 }
 
