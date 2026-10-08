@@ -410,7 +410,7 @@ export function cargarEjemplo() {
     { nombre: 'Jorge Iván Pardo', vehiculoComprado: 'Versa', etapa: 'vendido', fechaCompra: sumarMeses(h, -6), cumple: mmdd(sumarDias(h, 3)) },
     { nombre: 'Natalia Gómez', vehiculoInteres: 'Sentra', etapa: 'nuevo', proximoSeguimiento: sumarDias(h, 1), origen: 'WhatsApp' },
     { nombre: 'Santiago Cárdenas', vehiculoInteres: 'Kicks Play', etapa: 'nuevo', proximoSeguimiento: sumarDias(h, 4), cumple: mmdd(sumarDias(h, 9)) },
-    { nombre: 'Paola Andrea Vélez', vehiculoInteres: 'Qashqai', etapa: 'cotizado', proximoSeguimiento: sumarDias(h, 6), origen: 'Evento' },
+    { nombre: 'Paola Andrea Vélez', vehiculoInteres: 'Qashqai', etapa: 'cotizado', origen: 'Evento', notas: 'Pidió cotización y no volvió a escribir.' },
     { nombre: 'Ricardo Salazar', vehiculoInteres: 'Pathfinder', etapa: 'perdido', notas: 'Compró en otra marca por precio.' },
     { nombre: 'Diana Marcela Ortiz', vehiculoComprado: 'Kicks', etapa: 'vendido', fechaCompra: sumarDias(h, -20), cumple: mmdd(sumarDias(h, 1)), origen: 'Referido' },
   ];

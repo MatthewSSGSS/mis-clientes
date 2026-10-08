@@ -10,7 +10,7 @@ import {
   DESCRIPCION_REGLAS, REPETICIONES, destinatarios, proximaFecha, avanceProgramado, llenarTexto,
 } from '../engine.js';
 import {
-  icon, avatar, categoria, badgeCategoria, abrirHoja, cerrarHoja, confirmar, aviso, vacio, botonTema,
+  icon, avatar, categoria, badgeCategoria, abrirHoja, cerrarHoja, confirmar, aviso, vacio, botonTema, botonInicio,
 } from '../ui.js';
 import { esc, hoy, relativo, fechaCorta, plural, norm, sumarDias } from '../util.js';
 
@@ -38,7 +38,7 @@ export function render(root, { params }) {
 
   root.innerHTML = `
     <header class="hero hero-sm">
-      ${botonTema()}
+      ${botonInicio()}${botonTema()}
       <img class="hero-img" src="img/${FOTOS.mensajes}" alt="">
       <div class="hero-inner">
         <h1>Mensajes</h1>

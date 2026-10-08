@@ -682,6 +682,85 @@ button.tpl-card:hover { border-color: var(--border-strong); box-shadow: var(--sh
 .pick-row:last-child { border-bottom: 0; }
 .pick-row input { width: 20px; height: 20px; accent-color: var(--accent); flex: none; }
 
+/* Inicio: herramientas, columnas y tarjetas ---------------------------------- */
+.page-wide { max-width: 1180px; }
+.hero-home .hero-inner-wide, .hero-home .hero-top { max-width: 1180px; }
+button.stat { font: inherit; text-align: left; cursor: pointer; }
+button.stat[disabled] { cursor: default; }
+a.stat:hover, button.stat:not([disabled]):hover { border-color: var(--border-strong); }
+
+.home-tools { display: grid; gap: 12px; margin-top: 16px; }
+.home-tools.sin-stats { margin-top: 20px; }
+.home-search { position: relative; }
+.search-results {
+  position: absolute; z-index: 15; left: 0; right: 0; top: calc(100% + 6px);
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg); overflow: hidden;
+}
+.search-results > * + * { border-top: 1px solid var(--border); }
+.search-results a.g-row:hover { background: var(--surface-2); }
+
+.quick-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.quick {
+  display: grid; justify-items: center; align-content: start; gap: 8px;
+  padding: 14px 4px 12px; min-height: 92px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
+  font-size: 12.5px; font-weight: 700; line-height: 1.25; text-align: center; text-decoration: none; color: var(--text);
+  transition: border-color .15s, box-shadow .15s, transform .1s;
+}
+.quick:hover { border-color: var(--border-strong); box-shadow: var(--shadow); }
+.quick:active { transform: scale(.97); }
+@media (min-width: 900px) {
+  .home-tools { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+  .quick-grid { grid-template-columns: repeat(4, auto); }
+  .quick { display: flex; align-items: center; gap: 10px; min-height: 0; padding: 7px 14px 7px 7px; font-size: 14px; border-radius: 16px; }
+  .quick .icon-badge { width: 34px; height: 34px; border-radius: 11px; }
+  .quick .icon-badge .i { width: 18px; height: 18px; }
+  .home-tools.sin-stats { grid-template-columns: 1fr; justify-items: start; }
+}
+
+.home-grid { display: grid; grid-template-columns: minmax(0, 1fr); column-gap: 28px; }
+@media (min-width: 1100px) {
+  .home-grid { grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); align-items: start; }
+}
+
+.pasos-list { list-style: none; margin: 10px 0 0; padding: 0; }
+.paso { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-top: 1px solid var(--border); }
+.paso:first-child { border-top: 0; }
+.paso .li-body { display: grid; gap: 1px; }
+.paso-num {
+  width: 28px; height: 28px; flex: none; border-radius: 50%;
+  display: grid; place-items: center; font-weight: 800; font-size: 13px;
+  background: var(--surface-2); color: var(--text-2);
+}
+.paso.hecho .paso-num { background: var(--c-green); color: #fff; }
+.paso.hecho b { color: var(--muted); text-decoration: line-through; font-weight: 600; }
+
+.meta-bar { height: 10px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+.meta-bar span { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--accent), #ff6a3d); transition: width .4s; }
+.meta-bar.ok span { background: var(--c-green); }
+.meta-card .li-body { display: grid; gap: 1px; }
+button.meta-card { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.meta-vacia { border-style: dashed; border-color: var(--border-strong); }
+.meta-vacia:hover { border-color: var(--c-green); }
+.meta-stepper { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; }
+.meta-stepper .input { text-align: center; font-size: 28px; font-weight: 800; min-height: 54px; }
+.meta-stepper .btn { font-size: 22px; width: 54px; }
+
+.consejo { background: color-mix(in srgb, var(--c-amber) 7%, var(--surface)); border-color: color-mix(in srgb, var(--c-amber) 22%, var(--border)); }
+.consejo p { font-size: 15px; line-height: 1.55; }
+
+/* Botón de casita (volver a Inicio) */
+.hero-sm .home-btn { left: var(--gutter); right: auto; }
+.profile-nav .left { display: flex; gap: 8px; }
+.profile-nav .home-btn { width: 44px; height: 44px; border-radius: 14px; }
+/* En el celular, la barra de abajo ya tiene "Inicio"; en Clientes no cabe otro botón */
+@media (max-width: 959px) { .page-head .home-btn { display: none; } }
+@media (min-width: 960px) {
+  .tema-btn.home-btn { display: grid; }
+  .hero-sm .home-btn { left: 24px; top: 20px; }
+}
+
 /* Revisar clientes importados de documentos */
 .rev-card {
   display: grid; gap: 8px; padding: 12px 14px 10px;

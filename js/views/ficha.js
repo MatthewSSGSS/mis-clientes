@@ -12,7 +12,7 @@ import { abrirMensaje } from '../enviar.js';
 import { abrirFormularioCliente } from '../cliente-form.js';
 import { abrirFormularioProgramado } from './mensajes.js';
 import {
-  icon, avatar, pillEtapa, etapa as infoEtapa, categoria, badgeCategoria, abrirHoja, cerrarHoja, confirmar, aviso, vacio,
+  icon, avatar, pillEtapa, etapa as infoEtapa, categoria, badgeCategoria, abrirHoja, cerrarHoja, confirmar, aviso, vacio, botonInicio,
 } from '../ui.js';
 import {
   esc, hoy, sumarDias, relativo, fechaCorta, fechaLarga, cumpleTexto, cuando, telefonoBonito, primerNombre,
@@ -33,7 +33,10 @@ export function render(root, { params, navegar, puedeVolver }) {
       <img class="hero-img" src="img/${FOTOS.ficha}" alt="">
       <div class="profile-inner">
         <div class="profile-nav">
-          <button class="btn btn-icon" data-atras aria-label="Volver">${icon('chev-l')}</button>
+          <div class="left">
+            <button class="btn btn-icon" data-atras aria-label="Volver">${icon('chev-l')}</button>
+            ${botonInicio()}
+          </div>
           <button class="btn btn-sm" data-editar>${icon('edit', 'i-sm')} Editar</button>
         </div>
         <div class="profile-id">

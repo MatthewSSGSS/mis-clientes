@@ -23,6 +23,10 @@ export function botonTema() {
   return `<button class="tema-btn" type="button" data-tema-toggle aria-label="${oscuro ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}">${icon(oscuro ? 'sun' : 'moon')}</button>`;
 }
 
+/** Botón de casita para volver a Inicio. */
+export const botonInicio = (cls = '') =>
+  `<a class="tema-btn home-btn ${cls}" href="#/hoy" aria-label="Ir al inicio" title="Inicio">${icon('home')}</a>`;
+
 export const avatar = (nombre, cls = '') =>
   `<span class="avatar ${cls}" data-color="${colorDe(nombre)}" aria-hidden="true">${esc(iniciales(nombre))}</span>`;
 

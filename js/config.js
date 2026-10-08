@@ -4,7 +4,7 @@
 // este es el archivo. Cada vez que publiques cambios, sube APP_VERSION.
 // =============================================================================
 
-export const APP_VERSION = '1.1.0';
+export const APP_VERSION = '1.2.0';
 
 // Etapas del proceso de venta. El orden importa (así se muestran).
 // color: blue | violet | amber | green | red | pink | gray
@@ -124,6 +124,28 @@ export const DIAS_PROXIMOS = 14;
 
 // Cada cuántos días recordar hacer copia de seguridad
 export const DIAS_RECORDAR_RESPALDO = 14;
+
+// Un cliente "en proceso" sin seguimiento programado se considera que se está
+// enfriando si pasan estos días sin escribirle
+export const DIAS_ENFRIANDO = 10;
+
+// Consejo del día (sale uno distinto cada día en Inicio)
+export const CONSEJOS = [
+  'Responde rápido a los clientes nuevos: el primer día es cuando más interesados están.',
+  'Después de una prueba de manejo, escríbele ese mismo día para preguntar cómo se sintió con el carro.',
+  'Anota detalles personales en las notas (familia, trabajo, color favorito). Mencionarlos después genera confianza.',
+  'Un cliente "Cotizado" sin seguimiento se enfría. Ponle siempre una fecha para volver a escribirle.',
+  'Los clientes que ya compraron son tu mejor fuente de referidos. Pregúntales si conocen a alguien buscando carro.',
+  'Saluda en los cumpleaños sin vender nada: el cliente recuerda a quien se acordó de él.',
+  'Antes de escribir o llamar, revisa el historial del cliente para retomar donde quedaron.',
+  'Si un cliente dice "lo voy a pensar", programa el seguimiento en 3 días y anota qué lo está frenando.',
+  'Usa mensajes cortos y personales. Ajusta un poco la plantilla para que suene a ti.',
+  'Al cerrar una venta, márcala como "Vendido": la app te recordará el mantenimiento y el aniversario.',
+  'Revisa de vez en cuando los "No compró": las condiciones cambian y algunos vuelven.',
+  'Escribe en horarios prudentes: mejor durante el día que de noche o muy temprano.',
+  'Haz tu copia de seguridad cada semana. Toma un minuto y protege todo tu trabajo.',
+  'Cuando llegue una promoción, prográmala para los clientes en "Cotizado" y "Negociando".',
+];
 
 // Fotos usadas en la app (carpeta img/). Créditos: Unsplash (licencia libre).
 export const FOTOS = {

@@ -7,7 +7,7 @@ import * as store from '../store.js';
 import { ETAPAS } from '../config.js';
 import { abrirFormularioCliente } from '../cliente-form.js';
 import { menuImportar } from '../documentos.js';
-import { icon, avatar, pillEtapa, vacio, botonTema } from '../ui.js';
+import { icon, avatar, pillEtapa, vacio, botonTema, botonInicio } from '../ui.js';
 import { esc, norm, relativo, hoy, plural, telefonoBonito, debounce } from '../util.js';
 
 const ORDENES = [
@@ -33,7 +33,7 @@ export function render(root, { params }) {
           <h1>Clientes</h1>
           <p>${plural(todos.length, 'cliente', 'clientes')}</p>
         </div>
-        <div class="hstack">${botonTema()}<button class="btn btn-ghost btn-icon" data-importar aria-label="Importar clientes">${icon('upload')}</button><button class="btn btn-primary" data-nuevo>${icon('plus')} Nuevo</button></div>
+        <div class="hstack">${botonInicio()}${botonTema()}<button class="btn btn-ghost btn-icon" data-importar aria-label="Importar clientes">${icon('upload')}</button><button class="btn btn-primary" data-nuevo>${icon('plus')} Nuevo</button></div>
       </div>
 
       <div class="sticky-tools">

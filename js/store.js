@@ -34,6 +34,8 @@ function ajustesPorDefecto() {
     ultimoRespaldo: null,
     creado: new Date().toISOString(),
     bienvenidaVista: false,
+    metaVentas: 0,          // meta de ventas del mes (0 = sin meta)
+    ocultarPasos: false,    // ocultar la tarjeta "Primeros pasos"
   };
 }
 

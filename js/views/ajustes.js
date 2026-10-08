@@ -10,7 +10,7 @@ import {
   cargarEjemplo, borrarEjemplo, hayEjemplos,
 } from '../importar.js';
 import { importarDocumento, escribirLista } from '../documentos.js';
-import { icon, abrirHoja, cerrarHoja, confirmar, aviso, categoria, avatar, botonTema } from '../ui.js';
+import { icon, abrirHoja, cerrarHoja, confirmar, aviso, categoria, avatar, botonTema, botonInicio } from '../ui.js';
 import { esc, cuando, plural, esIOS, esAndroid, esInstalada, debounce } from '../util.js';
 
 export function render(root) {
@@ -20,7 +20,7 @@ export function render(root) {
 
   root.innerHTML = `
     <header class="hero hero-sm">
-      ${botonTema()}
+      ${botonInicio()}${botonTema()}
       <img class="hero-img" src="img/${FOTOS.ajustes}" alt="">
       <div class="hero-inner">
         <h1>Ajustes</h1>
@@ -116,6 +116,7 @@ export function render(root) {
         <h2>Actividad</h2>
         <div class="grouped">
           <button class="g-row" data-historial>${icon('send')}<div class="li-body"><b>Historial de envíos</b><span class="small muted">${plural(nEnvios, 'mensaje enviado', 'mensajes enviados')}</span></div>${icon('chev-r', 'chev')}</button>
+          ${a.ocultarPasos ? `<button class="g-row" data-ver-pasos>${icon('check')}<div class="li-body"><b>Mostrar "Primeros pasos" en Inicio</b></div>${icon('chev-r', 'chev')}</button>` : ''}
           ${hayEjemplos()
             ? `<button class="g-row" data-ej-borrar>${icon('trash')}<div class="li-body"><b>Borrar clientes de ejemplo</b></div>${icon('chev-r', 'chev')}</button>`
             : `<button class="g-row" data-ej-cargar>${icon('sparkles')}<div class="li-body"><b>Cargar clientes de ejemplo</b><span class="small muted">Para probar cómo funciona</span></div>${icon('chev-r', 'chev')}</button>`}
@@ -155,6 +156,7 @@ export function render(root) {
   root.querySelector('[data-historial]').addEventListener('click', () => verHistorial());
   root.querySelector('[data-ej-cargar]')?.addEventListener('click', () => { cargarEjemplo(); aviso('Clientes de ejemplo cargados. Mira la pantalla de Inicio.', { ms: 5000 }); });
   root.querySelector('[data-ej-borrar]')?.addEventListener('click', () => borrarEjemplo());
+  root.querySelector('[data-ver-pasos]')?.addEventListener('click', () => { store.actualizarAjustes({ ocultarPasos: false }); aviso('Listo, están de nuevo en Inicio'); });
 
   root.querySelector('[data-borrar-todo]').addEventListener('click', async () => {
     const n = store.clientes().length;
