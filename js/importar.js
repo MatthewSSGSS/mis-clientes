@@ -12,22 +12,11 @@ import * as store from './store.js';
 import { abrirHoja, cerrarHoja, aviso, confirmar, icon, avatar } from './ui.js';
 import {
   esc, norm, hoy, sumarDias, sumarMeses, plural, uid, telefonoInternacional, telefonoBonito,
-  compartirODescargar, descargarArchivo, elegirArchivo, leerArchivo,
+  compartirODescargar, descargarArchivo, elegirArchivo, leerArchivo, cargarScript,
 } from './util.js';
 
 const XLSX_URL = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-let cargandoXLSX = null;
-function cargarXLSX() {
-  if (window.XLSX) return Promise.resolve(window.XLSX);
-  cargandoXLSX ??= new Promise((resolve, reject) => {
-    const s = document.createElement('script');
-    s.src = XLSX_URL;
-    s.onload = () => resolve(window.XLSX);
-    s.onerror = () => { cargandoXLSX = null; reject(new Error('Sin conexión')); };
-    document.head.appendChild(s);
-  });
-  return cargandoXLSX;
-}
+const cargarXLSX = () => cargarScript(XLSX_URL, 'XLSX');
 
 // --- Copia de seguridad --------------------------------------------------------
 export async function guardarRespaldo() {
@@ -79,7 +68,7 @@ const SINONIMOS = {
   proximoSeguimiento: ['proximo seguimiento', 'seguimiento', 'proximo contacto'],
   notas: ['observaciones', 'observacion', 'comentarios', 'notas', 'nota'],
 };
-const ETIQUETAS = {
+export const ETIQUETAS = {
   nombre: 'Nombre', apellido: 'Apellido', telefono: 'Celular', email: 'Correo', cumple: 'Cumpleaños',
   vehiculoInteres: 'Vehículo de interés', vehiculoComprado: 'Vehículo comprado', fechaCompra: 'Fecha de compra',
   etapa: 'Etapa', origen: 'Origen', proximoSeguimiento: 'Seguimiento', notas: 'Notas',
@@ -104,7 +93,7 @@ function mapearColumnas(encabezados) {
 
 const pad = (n) => String(n).padStart(2, '0');
 /** Convierte fechas de Excel/texto a 'AAAA-MM-DD' ('' si no se entiende). */
-function aFechaISO(v) {
+export function aFechaISO(v) {
   if (v == null || v === '') return '';
   if (v instanceof Date && !isNaN(v)) return `${v.getFullYear()}-${pad(v.getMonth() + 1)}-${pad(v.getDate())}`;
   if (typeof v === 'number' && v > 59 && v < 80000) { // número de serie de Excel
@@ -124,7 +113,7 @@ function aFechaISO(v) {
   return '';
 }
 /** Cumpleaños a 'MM-DD'. Acepta fecha completa o solo día/mes. */
-function aCumple(v) {
+export function aCumple(v) {
   const iso = aFechaISO(v);
   if (iso) return iso.slice(5);
   const s = String(v ?? '').trim();
@@ -145,7 +134,7 @@ function aEtapa(v) {
 }
 
 /** Filas (arrays) → clientes. La primera fila son los encabezados. */
-function filasAClientes(filas) {
+export function filasAClientes(filas, origen = 'Importado') {
   const limpias = filas.filter((f) => Array.isArray(f) && f.some((x) => String(x ?? '').trim() !== ''));
   if (limpias.length < 2) return { clientes: [], mapa: {}, encabezados: [] };
   const encabezados = limpias[0].map((x) => String(x ?? '').trim());
@@ -169,7 +158,7 @@ function filasAClientes(filas) {
       origen: txt(f, 'origen'),
       proximoSeguimiento: aFechaISO(val(f, 'proximoSeguimiento')),
       notas: txt(f, 'notas'),
-      historial: [{ id: uid('h_'), fecha: new Date().toISOString(), tipo: 'creado', texto: 'Importado' }],
+      historial: [{ id: uid('h_'), fecha: new Date().toISOString(), tipo: 'creado', texto: origen }],
     });
   });
   return { clientes, mapa, encabezados };
@@ -234,7 +223,7 @@ export async function importarExcel() {
   vistaPreviaImportacion(clientes, Object.keys(mapa).map((k) => `${ETIQUETAS[k]} ← "${encabezados[mapa[k]]}"`));
 }
 
-function separarDuplicados(lista) {
+export function separarDuplicados(lista) {
   const cp = store.ajustes().codigoPais;
   const existentes = new Set(store.clientes().map((c) => telefonoInternacional(c.telefono, cp)));
   const nuevos = [], repetidos = [], invalidos = [];
@@ -248,7 +237,7 @@ function separarDuplicados(lista) {
   return { nuevos, repetidos, invalidos };
 }
 
-function vistaPreviaImportacion(lista, columnas) {
+export function vistaPreviaImportacion(lista, columnas) {
   const { nuevos, repetidos, invalidos } = separarDuplicados(lista);
   abrirHoja({
     titulo: 'Importar clientes',

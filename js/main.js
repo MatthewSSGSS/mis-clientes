@@ -15,7 +15,7 @@ import * as mensajes from './views/mensajes.js';
 import * as ajustes from './views/ajustes.js';
 import { mostrarBienvenida } from './views/bienvenida.js';
 import { abrirFormularioCliente } from './cliente-form.js';
-import { hojaAbierta, cerrarHoja, aviso } from './ui.js';
+import { hojaAbierta, cerrarHoja, aviso, icon, temaOscuro } from './ui.js';
 import { hoy as fechaHoy, primerNombre } from './util.js';
 
 const RUTAS = {
@@ -103,7 +103,17 @@ function aplicarTema() {
   const t = store.ajustes().tema;
   if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
   else delete document.documentElement.dataset.theme;
+  const oscuro = temaOscuro();
+  const btn = document.querySelector('.nav-tema');
+  if (btn) btn.innerHTML = `${icon(oscuro ? 'sun' : 'moon')}<span>${oscuro ? 'Modo claro' : 'Modo oscuro'}</span>`;
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', oscuro ? '#0b0b0e' : '#121216');
 }
+// Cualquier botón con data-tema-toggle cambia entre claro y oscuro
+document.addEventListener('click', (e) => {
+  if (e.target.closest('[data-tema-toggle]')) store.actualizarAjustes({ tema: temaOscuro() ? 'light' : 'dark' });
+});
+// Si está en automático y el celular cambia de modo, actualizar los botones
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { aplicarTema(); render(); });
 
 // Funciona sin internet y se puede instalar (service worker)
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {

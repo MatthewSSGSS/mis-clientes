@@ -69,8 +69,8 @@ export function render(root, { params, navegar, puedeVolver }) {
               <div class="li-title">${c.proximoSeguimiento ? esc(relativo(c.proximoSeguimiento)) : 'Sin programar'}</div>
               <div class="li-sub">${c.proximoSeguimiento
                 ? (c.proximoSeguimiento < h ? 'Atrasado — escríbele hoy'
-                  : c.proximoSeguimiento === h ? 'Ya está en tu lista de "Hoy"'
-                  : `Te aparecerá en "Hoy" el ${esc(fechaCorta(c.proximoSeguimiento))}`)
+                  : c.proximoSeguimiento === h ? 'Ya está en tu lista de Inicio'
+                  : `Te aparecerá en "Inicio" el ${esc(fechaCorta(c.proximoSeguimiento))}`)
                 : 'Elige cuándo volver a escribirle'}</div>
             </div>
           </div>

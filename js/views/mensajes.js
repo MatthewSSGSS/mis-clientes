@@ -10,7 +10,7 @@ import {
   DESCRIPCION_REGLAS, REPETICIONES, destinatarios, proximaFecha, avanceProgramado, llenarTexto,
 } from '../engine.js';
 import {
-  icon, avatar, categoria, badgeCategoria, abrirHoja, cerrarHoja, confirmar, aviso, vacio,
+  icon, avatar, categoria, badgeCategoria, abrirHoja, cerrarHoja, confirmar, aviso, vacio, botonTema,
 } from '../ui.js';
 import { esc, hoy, relativo, fechaCorta, plural, norm, sumarDias } from '../util.js';
 
@@ -38,10 +38,11 @@ export function render(root, { params }) {
 
   root.innerHTML = `
     <header class="hero hero-sm">
+      ${botonTema()}
       <img class="hero-img" src="img/${FOTOS.mensajes}" alt="">
       <div class="hero-inner">
         <h1>Mensajes</h1>
-        <p>Programa saludos y ofertas. El día que toca te aparecen en "Hoy" listos para enviar.</p>
+        <p>Programa saludos y ofertas. El día que toca te aparecen en "Inicio" listos para enviar.</p>
       </div>
       <span class="photo-credit">Foto: Unsplash</span>
     </header>
@@ -168,7 +169,7 @@ export function abrirFormularioProgramado(id, base = {}) {
         </div>
         ${existente ? `
         <label class="g-row card" style="cursor:pointer">
-          <div class="li-body"><b>Activo</b><span class="small muted">Si lo pausas, no aparecerá en "Hoy".</span></div>
+          <div class="li-body"><b>Activo</b><span class="small muted">Si lo pausas, no aparecerá en "Inicio".</span></div>
           <span class="switch"><input type="checkbox" name="activa" ${p.activa !== false ? 'checked' : ''}><span></span></span>
         </label>` : ''}
       </form>`,
@@ -273,7 +274,7 @@ export function abrirFormularioProgramado(id, base = {}) {
         });
         store.guardarProgramado(p);
         cerrarHoja();
-        const cuando = p.fecha <= hoy() ? 'Ya está en "Hoy" para enviar' : `Te aparecerá en "Hoy" el ${fechaCorta(p.fecha)}`;
+        const cuando = p.fecha <= hoy() ? 'Ya está en "Inicio" para enviar' : `Te aparecerá en "Inicio" el ${fechaCorta(p.fecha)}`;
         aviso(existente ? 'Cambios guardados' : `Programado. ${cuando}`, { ms: 5000 });
       });
     },
@@ -382,7 +383,7 @@ function tabAutomaticos(el) {
   const r = store.reglas();
   el.innerHTML = `
     <div class="banner info mt-16">${icon('repeat', 'i-lg')}<div><strong>Funcionan solos</strong>
-      El día que toca, el mensaje aparece en "Hoy" ya escrito. Tú solo revisas y tocas <b>Enviar</b>.</div></div>
+      El día que toca, el mensaje aparece en "Inicio" ya escrito. Tú solo revisas y tocas <b>Enviar</b>.</div></div>
     <div class="stack mt-16">
       ${Object.entries(DESCRIPCION_REGLAS).map(([id, d]) => {
         const regla = r[id];

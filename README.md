@@ -53,6 +53,7 @@ js/
   enviar.js           Ventanas de envío (individual y "enviar en serie")
   cliente-form.js     Formulario de cliente
   importar.js         Excel/CSV, contactos .vcf, copia de seguridad, exportar, ejemplos
+  documentos.js       PDF, Word, fotos del cuaderno (OCR) y listas escritas → clientes
   ui.js               Piezas visuales: hoja/ventana, avisos, confirmaciones, avatares
   util.js             Fechas, textos y teléfonos
   main.js             Arranque y navegación (rutas con #)

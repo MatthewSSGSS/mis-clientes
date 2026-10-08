@@ -61,7 +61,7 @@ export function abrirFormularioCliente(id, { alGuardar, campos } = {}) {
             ${RAPIDOS.map((r) => `<button type="button" class="chip" data-dias="${r.dias}">${r.txt}</button>`).join('')}
             <button type="button" class="chip" data-dias="">Ninguno</button>
           </div>
-          <span class="hint">Ese día te aparecerá en "Hoy" para escribirle.</span>
+          <span class="hint">Ese día te aparecerá en "Inicio" para escribirle.</span>
         </div>
 
         <div class="field">

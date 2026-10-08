@@ -11,6 +11,18 @@ export const icon = (name, cls = '') => `<svg class="i ${cls}" aria-hidden="true
 export const etapa = (id) => ETAPAS.find((e) => e.id === id) || ETAPAS[0];
 export const categoria = (id) => CATEGORIAS.find((c) => c.id === id) || { id, nombre: 'Otros', icon: 'message', color: 'gray' };
 
+/** ¿Se está viendo en modo oscuro? (por elección o por el sistema) */
+export function temaOscuro() {
+  const t = document.documentElement.dataset.theme;
+  return t ? t === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+
+/** Botón redondo para cambiar entre claro y oscuro (main.js maneja el clic). */
+export function botonTema() {
+  const oscuro = temaOscuro();
+  return `<button class="tema-btn" type="button" data-tema-toggle aria-label="${oscuro ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}">${icon(oscuro ? 'sun' : 'moon')}</button>`;
+}
+
 export const avatar = (nombre, cls = '') =>
   `<span class="avatar ${cls}" data-color="${colorDe(nombre)}" aria-hidden="true">${esc(iniciales(nombre))}</span>`;
 

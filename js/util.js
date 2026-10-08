@@ -195,6 +195,23 @@ export function leerArchivo(file, como = 'text') {
   });
 }
 
+/**
+ * Carga una librería externa (<script>) solo la primera vez que se necesita.
+ * Devuelve window[nombreGlobal]. Falla con Error('Sin conexión') si no carga.
+ */
+const scriptsCargando = {};
+export function cargarScript(url, nombreGlobal) {
+  if (window[nombreGlobal]) return Promise.resolve(window[nombreGlobal]);
+  scriptsCargando[url] ??= new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = url;
+    s.onload = () => resolve(window[nombreGlobal]);
+    s.onerror = () => { delete scriptsCargando[url]; s.remove(); reject(new Error('Sin conexión')); };
+    document.head.appendChild(s);
+  });
+  return scriptsCargando[url];
+}
+
 /** Abre el selector de archivos y devuelve el archivo elegido (o null). */
 export function elegirArchivo(accept) {
   return new Promise((resolve) => {

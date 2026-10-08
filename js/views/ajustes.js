@@ -9,7 +9,8 @@ import {
   guardarRespaldo, restaurarRespaldo, importarExcel, importarContactos, exportarExcel,
   cargarEjemplo, borrarEjemplo, hayEjemplos,
 } from '../importar.js';
-import { icon, abrirHoja, cerrarHoja, confirmar, aviso, categoria, avatar } from '../ui.js';
+import { importarDocumento, escribirLista } from '../documentos.js';
+import { icon, abrirHoja, cerrarHoja, confirmar, aviso, categoria, avatar, botonTema } from '../ui.js';
 import { esc, cuando, plural, esIOS, esAndroid, esInstalada, debounce } from '../util.js';
 
 export function render(root) {
@@ -19,6 +20,7 @@ export function render(root) {
 
   root.innerHTML = `
     <header class="hero hero-sm">
+      ${botonTema()}
       <img class="hero-img" src="img/${FOTOS.ajustes}" alt="">
       <div class="hero-inner">
         <h1>Ajustes</h1>
@@ -95,6 +97,8 @@ export function render(root) {
       <div class="settings-group">
         <h2>Importar y exportar</h2>
         <div class="grouped">
+          <button class="g-row" data-imp-doc><span class="icon-badge" data-color="red">${icon('scan')}</span><div class="li-body"><b>Importar desde PDF, Word o foto</b><span class="small muted">Por ejemplo, una foto de tu cuaderno de clientes</span></div>${icon('chev-r', 'chev')}</button>
+          <button class="g-row" data-imp-lista><span class="icon-badge" data-color="amber">${icon('note')}</span><div class="li-body"><b>Escribir o pegar una lista</b><span class="small muted">Un cliente por línea</span></div>${icon('chev-r', 'chev')}</button>
           <button class="g-row" data-imp-excel><span class="icon-badge" data-color="green">${icon('sheet')}</span><div class="li-body"><b>Importar desde Excel</b><span class="small muted">Archivo .xlsx o .csv con columnas Nombre y Celular</span></div>${icon('chev-r', 'chev')}</button>
           <button class="g-row" data-imp-vcf><span class="icon-badge" data-color="blue">${icon('contact')}</span><div class="li-body"><b>Importar contactos</b><span class="small muted">Archivo .vcf (desde iCloud.com, Google Contactos o tu celular)</span></div>${icon('chev-r', 'chev')}</button>
           <button class="g-row" data-exp-excel><span class="icon-badge" data-color="violet">${icon('download')}</span><div class="li-body"><b>Exportar clientes a Excel</b></div>${icon('chev-r', 'chev')}</button>
@@ -143,11 +147,13 @@ export function render(root) {
 
   root.querySelector('[data-respaldo]').addEventListener('click', () => guardarRespaldo());
   root.querySelector('[data-restaurar]').addEventListener('click', () => restaurarRespaldo());
+  root.querySelector('[data-imp-doc]').addEventListener('click', () => importarDocumento());
+  root.querySelector('[data-imp-lista]').addEventListener('click', () => escribirLista());
   root.querySelector('[data-imp-excel]').addEventListener('click', () => importarExcel());
   root.querySelector('[data-imp-vcf]').addEventListener('click', () => importarContactos());
   root.querySelector('[data-exp-excel]').addEventListener('click', () => exportarExcel());
   root.querySelector('[data-historial]').addEventListener('click', () => verHistorial());
-  root.querySelector('[data-ej-cargar]')?.addEventListener('click', () => { cargarEjemplo(); aviso('Clientes de ejemplo cargados. Mira la pantalla "Hoy".', { ms: 5000 }); });
+  root.querySelector('[data-ej-cargar]')?.addEventListener('click', () => { cargarEjemplo(); aviso('Clientes de ejemplo cargados. Mira la pantalla de Inicio.', { ms: 5000 }); });
   root.querySelector('[data-ej-borrar]')?.addEventListener('click', () => borrarEjemplo());
 
   root.querySelector('[data-borrar-todo]').addEventListener('click', async () => {

@@ -6,8 +6,8 @@
 import * as store from '../store.js';
 import { ETAPAS } from '../config.js';
 import { abrirFormularioCliente } from '../cliente-form.js';
-import { importarExcel } from '../importar.js';
-import { icon, avatar, pillEtapa, vacio } from '../ui.js';
+import { menuImportar } from '../documentos.js';
+import { icon, avatar, pillEtapa, vacio, botonTema } from '../ui.js';
 import { esc, norm, relativo, hoy, plural, telefonoBonito, debounce } from '../util.js';
 
 const ORDENES = [
@@ -33,7 +33,7 @@ export function render(root, { params }) {
           <h1>Clientes</h1>
           <p>${plural(todos.length, 'cliente', 'clientes')}</p>
         </div>
-        <button class="btn btn-primary" data-nuevo>${icon('plus')} Nuevo</button>
+        <div class="hstack">${botonTema()}<button class="btn btn-ghost btn-icon" data-importar aria-label="Importar clientes">${icon('upload')}</button><button class="btn btn-primary" data-nuevo>${icon('plus')} Nuevo</button></div>
       </div>
 
       <div class="sticky-tools">
@@ -67,6 +67,7 @@ export function render(root, { params }) {
   pintar();
 
   root.querySelector('[data-nuevo]').addEventListener('click', () => abrirFormularioCliente());
+  root.querySelector('[data-importar]').addEventListener('click', () => menuImportar());
   root.querySelector('[data-buscar]').addEventListener('input', debounce((e) => {
     busqueda = e.target.value; limite = POR_PAGINA; pintar();
   }, 120));
@@ -101,11 +102,11 @@ function pintarLista(el, filtro) {
   if (!store.clientes().length) {
     el.innerHTML = vacio({
       icono: 'users', color: 'blue', titulo: 'Aún no tienes clientes',
-      texto: 'Registra el primero con el botón <b>+</b>, o importa los que ya tienes en Excel.',
-      accion: `<div class="hstack"><button class="btn btn-primary" data-n>${icon('plus')} Registrar</button><button class="btn btn-outline" data-i>${icon('sheet')} Importar Excel</button></div>`,
+      texto: 'Registra el primero con el botón <b>+</b>, o pásalos desde un Excel, PDF, Word o foto de tu cuaderno.',
+      accion: `<div class="hstack"><button class="btn btn-primary" data-n>${icon('plus')} Registrar</button><button class="btn btn-outline" data-i>${icon('upload')} Importar</button></div>`,
     });
     el.querySelector('[data-n]').addEventListener('click', () => abrirFormularioCliente());
-    el.querySelector('[data-i]').addEventListener('click', () => importarExcel());
+    el.querySelector('[data-i]').addEventListener('click', () => menuImportar());
     return;
   }
   if (!lista.length) {

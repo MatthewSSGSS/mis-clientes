@@ -8,8 +8,9 @@ import { ETAPAS, ETAPAS_ACTIVAS, FOTOS, DIAS_RECORDAR_RESPALDO, CATEGORIAS } fro
 import { pendientesHoy, proximos } from '../engine.js';
 import { abrirMensaje, modoSerie } from '../enviar.js';
 import { abrirFormularioCliente } from '../cliente-form.js';
-import { importarExcel, guardarRespaldo } from '../importar.js';
-import { icon, avatar, categoria, badgeCategoria, vacio } from '../ui.js';
+import { guardarRespaldo } from '../importar.js';
+import { menuImportar } from '../documentos.js';
+import { icon, avatar, categoria, badgeCategoria, vacio, botonTema } from '../ui.js';
 import {
   esc, hoy, saludo, fechaLarga, relativo, primerNombre, plural, esIOS, esMovil, esInstalada, diasEntre, fechaStr,
 } from '../util.js';
@@ -36,9 +37,9 @@ export function render(root) {
   else resumen = 'Todo al día. No tienes mensajes pendientes. ✨';
 
   root.innerHTML = `
-    <header class="hero">
+    <header class="hero hero-home">
       <img class="hero-img" src="img/${foto}" alt="" fetchpriority="high">
-      <div class="hero-top"><span class="hero-date">${esc(fechaLarga(h))}</span></div>
+      <div class="hero-top"><span class="hero-date">${esc(fechaLarga(h))}</span>${botonTema()}</div>
       <div class="hero-inner">
         <h1>${esc(saludo())}${nombre ? `, ${esc(nombre)}` : ''}</h1>
         <p>${esc(resumen)}</p>
@@ -46,7 +47,7 @@ export function render(root) {
           ${items.length ? `<button class="btn btn-wa btn-lg" data-serie>${icon('send')} Empezar a enviar (${items.length})</button>` : ''}
           ${!clientes.length ? `
             <button class="btn btn-primary btn-lg" data-nuevo>${icon('plus')} Registrar cliente</button>
-            <button class="btn btn-glass btn-lg" data-importar>${icon('sheet')} Importar Excel</button>` : ''}
+            <button class="btn btn-glass btn-lg" data-importar>${icon('upload')} Pasar mis clientes</button>` : ''}
         </div>
       </div>
       <span class="photo-credit">Foto: Unsplash</span>
@@ -96,7 +97,7 @@ export function render(root) {
   // Eventos
   root.querySelectorAll('[data-serie]').forEach((b) => b.addEventListener('click', () => modoSerie(pendientesHoy())));
   root.querySelectorAll('[data-nuevo]').forEach((b) => b.addEventListener('click', () => abrirFormularioCliente()));
-  root.querySelectorAll('[data-importar]').forEach((b) => b.addEventListener('click', () => importarExcel()));
+  root.querySelectorAll('[data-importar]').forEach((b) => b.addEventListener('click', () => menuImportar()));
   root.querySelector('[data-respaldo]')?.addEventListener('click', () => guardarRespaldo());
   root.querySelector('[data-ver-prox]')?.addEventListener('click', () => { verTodosProximos = !verTodosProximos; render(root); });
   root.querySelectorAll('[data-enviar]').forEach((b) => b.addEventListener('click', () => {
