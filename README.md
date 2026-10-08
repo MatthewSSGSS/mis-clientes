@@ -54,6 +54,8 @@ js/
   cliente-form.js     Formulario de cliente
   importar.js         Excel/CSV, contactos .vcf, copia de seguridad, exportar, ejemplos
   documentos.js       PDF, Word, fotos del cuaderno (OCR) y listas escritas → clientes
+  recordatorios.js    Recordatorio diario (calendario) y número de pendientes en el ícono
+cal/                  Eventos .ics del recordatorio diario (generados por tools/generar_calendarios.py)
   ui.js               Piezas visuales: hoja/ventana, avisos, confirmaciones, avatares
   util.js             Fechas, textos y teléfonos
   main.js             Arranque y navegación (rutas con #)
@@ -71,6 +73,15 @@ js/
 | Una pantalla nueva | `js/views/<nombre>.js` con `export function render(root, ctx)`, registrarla en `RUTAS` de `js/main.js` y agregar el link en `index.html` |
 | Un ícono | Un `<symbol id="i-nombre">` en `index.html` (estilo [Lucide](https://lucide.dev)), y luego `icon('nombre')` |
 | Colores | Variables en `:root` de `styles.css` (y su versión oscura) |
+
+### Notificaciones
+
+Una página web no puede programar notificaciones con la app cerrada, así que la app usa dos caminos sin servidor:
+
+- **Recordatorio diario:** se agrega al calendario del celular un evento que se repite y trae una alerta. Los archivos están en `cal/`; si cambia la URL de la app, edita `URL_APP` en `tools/generar_calendarios.py` y vuelve a ejecutarlo.
+- **Número en el ícono** (`navigator.setAppBadge`): se actualiza cada vez que se abre la app.
+
+Para notificaciones push con texto personalizado ("Hoy cumple Laura") haría falta un servidor pequeño que las envíe a una hora fija. Por ejemplo, un Cloudflare Worker gratis con Cron Triggers y KV para guardar las suscripciones, más un evento `push` en `sw.js` que arme el texto con lo pendiente del día.
 
 ### Migraciones (para no perder datos)
 

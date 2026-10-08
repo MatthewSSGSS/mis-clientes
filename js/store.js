@@ -36,6 +36,9 @@ function ajustesPorDefecto() {
     bienvenidaVista: false,
     metaVentas: 0,          // meta de ventas del mes (0 = sin meta)
     ocultarPasos: false,    // ocultar la tarjeta "Primeros pasos"
+    recordatorioHora: 8,    // hora del recordatorio diario en el calendario
+    recordatorioDias: 'diario', // 'diario' | 'lunsab'
+    recordatorioAgregado: false,
   };
 }
 

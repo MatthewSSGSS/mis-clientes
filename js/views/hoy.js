@@ -16,6 +16,7 @@ import { abrirFormularioCliente } from '../cliente-form.js';
 import { abrirFormularioProgramado } from './mensajes.js';
 import { guardarRespaldo } from '../importar.js';
 import { menuImportar } from '../documentos.js';
+import { abrirRecordatorio } from '../recordatorios.js';
 import {
   icon, avatar, etapa as infoEtapa, categoria, badgeCategoria, vacio, botonTema, abrirHoja, cerrarHoja, aviso,
 } from '../ui.js';
@@ -169,6 +170,7 @@ export function render(root, { navegar }) {
     store.actualizarAjustes({ ocultarPasos: true });
     aviso('Listo. Puedes volver a verlos en Ajustes.');
   });
+  root.querySelectorAll('[data-recordatorio]').forEach((b) => b.addEventListener('click', () => abrirRecordatorio()));
   root.querySelectorAll('[data-meta]').forEach((b) => b.addEventListener('click', () => editarMeta()));
   root.querySelectorAll('[data-enviar]').forEach((b) => b.addEventListener('click', () => {
     const it = items.find((x) => x.key === b.dataset.enviar);
@@ -234,6 +236,7 @@ function primerosPasos(a, clientes) {
     { hecho: clientes.some((c) => c.proximoSeguimiento) || enviados, titulo: 'Ponle fecha de seguimiento a un cliente', sub: 'Así la app te recuerda escribirle', accion: '<a class="btn btn-sm btn-outline" href="#/clientes">Ver</a>' },
     { hecho: enviados, titulo: 'Envía tu primer mensaje', sub: 'Desde "Para hoy" o desde la ficha de un cliente' },
     { hecho: esInstalada() || !esMovil, titulo: 'Instala la app en tu celular', sub: 'Para abrirla con un toque y proteger tus datos', accion: '<a class="btn btn-sm btn-outline" href="#/ajustes">Cómo</a>' },
+    { hecho: !!a.recordatorioAgregado, titulo: 'Activa tu recordatorio diario', sub: 'Tu celular te avisa cada día a la hora que elijas', accion: '<button class="btn btn-sm btn-outline" data-recordatorio>Activar</button>' },
     { hecho: !!a.ultimoRespaldo, titulo: 'Guarda tu primera copia de seguridad', sub: 'Por si cambias o pierdes el celular', accion: '<button class="btn btn-sm btn-outline" data-respaldo>Guardar</button>' },
   ];
 }

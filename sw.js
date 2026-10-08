@@ -10,7 +10,7 @@
 // ARCHIVOS y cambia VERSION.
 // =============================================================================
 
-const VERSION = 'v3';
+const VERSION = 'v4';
 const CACHE = `mis-clientes-${VERSION}`;
 
 const ARCHIVOS = [
@@ -29,6 +29,7 @@ const ARCHIVOS = [
   './js/cliente-form.js',
   './js/importar.js',
   './js/documentos.js',
+  './js/recordatorios.js',
   './js/views/hoy.js',
   './js/views/clientes.js',
   './js/views/ficha.js',

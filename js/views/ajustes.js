@@ -10,6 +10,7 @@ import {
   cargarEjemplo, borrarEjemplo, hayEjemplos,
 } from '../importar.js';
 import { importarDocumento, escribirLista } from '../documentos.js';
+import { abrirRecordatorio, textoRecordatorio, estadoInsignia, activarInsignia } from '../recordatorios.js';
 import { icon, abrirHoja, cerrarHoja, confirmar, aviso, categoria, avatar, botonTema, botonInicio } from '../ui.js';
 import { esc, cuando, plural, esIOS, esAndroid, esInstalada, debounce } from '../util.js';
 
@@ -67,6 +68,31 @@ export function render(root) {
                 `<button type="button" data-v="${v}" class="${a.tema === v ? 'on' : ''}">${t}</button>`).join('')}
             </div>
           </div>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <h2>Recordatorios y avisos</h2>
+        <div class="grouped">
+          <button class="g-row" data-recordatorio>
+            <span class="icon-badge" data-color="red">${icon('bell')}</span>
+            <div class="li-body"><b>Recordatorio diario</b>
+              <span class="small muted">${a.recordatorioAgregado ? `${esc(textoRecordatorio())} · en tu calendario` : 'Tu celular te avisa cada día, aunque la app esté cerrada'}</span></div>
+            ${a.recordatorioAgregado ? `<span class="pill" data-color="green">Activo</span>` : icon('chev-r', 'chev')}
+          </button>
+          ${(() => {
+            const e = estadoInsignia();
+            if (e === 'no-disponible') return '';
+            const sub = {
+              activo: 'Muestra cuántos mensajes tienes pendientes hoy',
+              'falta-permiso': 'Muestra cuántos mensajes tienes pendientes hoy',
+              instalar: 'Disponible cuando instalas la app (en iPhone, iOS 16.4 o más nuevo)',
+            }[e];
+            const fin = e === 'activo' ? '<span class="pill" data-color="green">Activo</span>'
+              : e === 'falta-permiso' ? '<button class="btn btn-sm btn-primary" data-insignia>Activar</button>' : '';
+            return `<div class="g-row"><span class="icon-badge" data-color="blue">${icon('home')}</span>
+              <div class="li-body"><b>Número en el ícono de la app</b><span class="small muted">${sub}</span></div>${fin}</div>`;
+          })()}
         </div>
       </div>
 
@@ -148,6 +174,8 @@ export function render(root) {
 
   root.querySelector('[data-respaldo]').addEventListener('click', () => guardarRespaldo());
   root.querySelector('[data-restaurar]').addEventListener('click', () => restaurarRespaldo());
+  root.querySelector('[data-recordatorio]').addEventListener('click', () => abrirRecordatorio());
+  root.querySelector('[data-insignia]')?.addEventListener('click', () => activarInsignia());
   root.querySelector('[data-imp-doc]').addEventListener('click', () => importarDocumento());
   root.querySelector('[data-imp-lista]').addEventListener('click', () => escribirLista());
   root.querySelector('[data-imp-excel]').addEventListener('click', () => importarExcel());

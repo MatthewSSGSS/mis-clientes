@@ -15,6 +15,8 @@ import * as mensajes from './views/mensajes.js';
 import * as ajustes from './views/ajustes.js';
 import { mostrarBienvenida } from './views/bienvenida.js';
 import { abrirFormularioCliente } from './cliente-form.js';
+import { pendientesHoy } from './engine.js';
+import { actualizarInsignia } from './recordatorios.js';
 import { hojaAbierta, cerrarHoja, aviso, icon, temaOscuro } from './ui.js';
 import { hoy as fechaHoy, primerNombre } from './util.js';
 
@@ -61,6 +63,7 @@ function render() {
   if (mismaRuta) window.scrollTo(0, scroll);
   else { window.scrollTo(0, 0); rutaActual = ruta.clave; }
   renderPendiente = false;
+  actualizarInsignia(store.clientes().length ? pendientesHoy().length : 0);
 }
 
 // Si los datos cambian mientras la persona escribe en un campo de la pantalla,
