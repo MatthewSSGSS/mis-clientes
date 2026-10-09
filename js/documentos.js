@@ -16,7 +16,7 @@
 // =============================================================================
 
 import * as store from './store.js';
-import { abrirHoja, cerrarHoja, aviso, icon } from './ui.js';
+import { abrirHoja, cerrarHoja, aviso, icon, confirmar } from './ui.js';
 import {
   esc, plural, uid, telefonoInternacional, elegirArchivo, leerArchivo, cargarScript, esIOS,
 } from './util.js';
@@ -24,6 +24,7 @@ import {
   importarExcel, importarContactos, filasAClientes, vistaPreviaImportacion, ETIQUETAS, aCumple, descargarPlantillaVentas,
 } from './importar.js';
 import { pareceCuaderno, lineasAVentas, revisarVentas } from './cuaderno.js';
+import * as nube from './nube.js';
 
 const LIBS = {
   mammoth: 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js',
@@ -106,10 +107,46 @@ export async function importarDocumento() {
     return;
   }
 
+  const esFoto = file.type.startsWith('image/') || /\.(jpe?g|png|webp|heic|heif|bmp|gif)$/.test(nombre);
+  const esPDF = nombre.endsWith('.pdf') || file.type === 'application/pdf';
+  const origen = `Importado de ${file.name}`;
+
+  // Con cuenta: la letra a mano la lee Claude (mucho mejor que el lector gratis)
+  if (nube.enCuenta() && (esFoto || esPDF)) {
+    const prog = ventanaProgreso(`Leyendo ${file.name}`);
+    try {
+      let lienzos;
+      if (esFoto) lienzos = [await imagenACanvas(file, { color: true, max: 2000 })];
+      else {
+        const r = await leerPDF(file, prog, { ia: true });
+        if (r.lineas) { prog.terminar(); procesarLineas(r.lineas, { origen, archivo: file.name }); return; } // PDF con texto
+        lienzos = r.lienzos;
+      }
+      const ventas = await leerConClaude(lienzos, prog);
+      if (prog.cancelado()) return;
+      prog.terminar(true);
+      if (!ventas.length) { aviso('No encontré ventas en esa foto. Revisa que se vea toda la hoja.', { icono: 'x', ms: 7000 }); return; }
+      revisarVentas(ventas, { ia: true, origen });
+      return;
+    } catch (e) {
+      console.error(e);
+      prog.terminar(true);
+      const usarGratis = await confirmar({
+        titulo: 'No se pudo leer con IA',
+        texto: `${esc(mensajeErrorIA(e.message))}<br><br>¿Quieres intentarlo con el lector gratis? Lee bien los nombres, pero se equivoca más en los números.`,
+        si: 'Usar lector gratis', no: 'Cancelar',
+      });
+      if (!usarGratis) return;
+    }
+  }
+  return importarSinIA(file, nombre, origen);
+}
+
+/** Lector gratis (OCR en el celular) y archivos con texto (Word, PDF, txt). */
+async function importarSinIA(file, nombre, origen) {
   const prog = ventanaProgreso(`Leyendo ${file.name}`);
   try {
     let lineas, ocr = false;
-    const origen = `Importado de ${file.name}`;
     if (nombre.endsWith('.docx')) {
       const r = await leerWord(file, prog, origen);
       if (r.listo) return prog.terminar();
@@ -136,6 +173,54 @@ export async function importarDocumento() {
       : 'No pude leer el archivo. Si es una foto, intenta con más luz y la hoja derecha.';
     aviso(msg, { icono: 'x', ms: 7000 });
   }
+}
+
+// --- Lector con Claude ------------------------------------------------------------------
+const MAX_PAGINAS_IA = 10;
+// Campos que Claude marca como dudosos → campos de la pantalla de revisión
+const CAMPO_IA = {
+  pedido: 'pedido', vehiculo: 'vehiculo', nombre: 'nombre', cedula: 'cedula', celular: 'telefono',
+  valor_venta: 'precio', fecha_entrega: 'fechaCompra', comision: 'comision', fecha_pago_comision: 'fechaPagoComision',
+};
+
+function mensajeErrorIA(codigo) {
+  return ({
+    limite: 'Llegaste al límite de hojas por hoy. Intenta de nuevo mañana.',
+    'sin-saldo': 'Se acabó el saldo del lector con IA. Hay que recargarlo en console.anthropic.com.',
+    'falta-clave': 'El lector con IA todavía no está configurado (falta la clave de Claude en Supabase).',
+    'clave-invalida': 'La clave de Claude guardada en Supabase no es válida.',
+    'no-autorizado': 'Tu sesión venció. Cierra sesión y vuelve a entrar.',
+    'imagen-grande': 'La foto es demasiado grande.',
+    ocupado: 'El lector está ocupado en este momento. Intenta en un minuto.',
+    rechazo: 'Claude no pudo procesar esa foto.',
+    conexion: 'No hay conexión con el servidor. Revisa tu internet.',
+  })[codigo] || 'Ocurrió un problema al leer la foto.';
+}
+
+/** Lienzo → base64 JPEG (sin el prefijo "data:") */
+const aBase64 = (lienzo) => lienzo.toDataURL('image/jpeg', 0.85).split(',')[1];
+
+/** Envía cada hoja a Claude (por el servidor) y junta las ventas. */
+async function leerConClaude(lienzos, prog) {
+  const ventas = [];
+  const anio = new Date().getFullYear();
+  for (let i = 0; i < lienzos.length; i++) {
+    if (prog.cancelado()) break;
+    prog.texto(lienzos.length > 1 ? `Claude está leyendo la hoja ${i + 1} de ${lienzos.length}… (puede tardar un minuto)` : 'Claude está leyendo la hoja… (puede tardar un minuto)');
+    prog.avance((i + 0.3) / lienzos.length);
+    const r = await nube.leerCuadernoIA({ imagen: aBase64(lienzos[i]), tipo: 'image/jpeg', anio });
+    for (const v of r.ventas || []) {
+      ventas.push({
+        linea: '', pedido: String(v.pedido || '').replace(/\D/g, ''), vehiculo: v.vehiculo || '', nombre: v.nombre || '',
+        poliza: v.poliza || '', cedula: v.cedula || '', telefono: String(v.celular || '').replace(/\D/g, ''),
+        precio: Number(v.valor_venta) || 0, fechaCompra: v.fecha_entrega || '', comision: Number(v.comision) || 0,
+        fechaPagoComision: v.fecha_pago_comision || '',
+        dudas: (v.dudas || []).map((d) => CAMPO_IA[d]).filter(Boolean),
+      });
+    }
+    prog.avance((i + 1) / lienzos.length);
+  }
+  return ventas;
 }
 
 /** Ventana con barra de progreso mientras se lee el archivo. */
@@ -180,7 +265,7 @@ async function leerWord(file, prog, origen) {
   return { lineas };
 }
 
-async function leerPDF(file, prog) {
+async function leerPDF(file, prog, { ia = false } = {}) {
   prog.texto('Abriendo el PDF…');
   const pdfjsLib = await cargarScript(LIBS.pdfjs, 'pdfjsLib');
   pdfjsLib.GlobalWorkerOptions.workerSrc = LIBS.pdfWorker;
@@ -198,18 +283,20 @@ async function leerPDF(file, prog) {
   }
   // PDF escaneado (casi sin texto): leer las páginas como imágenes
   if (letras < 25 * pdf.numPages) {
-    const n = Math.min(pdf.numPages, MAX_PAGINAS_OCR);
+    const n = Math.min(pdf.numPages, ia ? MAX_PAGINAS_IA : MAX_PAGINAS_OCR);
     const lienzos = [];
     for (let i = 1; i <= n; i++) {
       prog.texto(`Preparando página ${i} de ${n}…`);
       const page = await pdf.getPage(i);
-      const vp = page.getViewport({ scale: 2 });
+      const base = page.getViewport({ scale: 1 });
+      const vp = page.getViewport({ scale: ia ? Math.min(3, 2000 / Math.max(base.width, base.height)) : 2 });
       const c = document.createElement('canvas');
       c.width = vp.width; c.height = vp.height;
       await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
       lienzos.push(c);
     }
     if (pdf.numPages > n) aviso(`Solo leo las primeras ${n} páginas escaneadas.`, { icono: 'x' });
+    if (ia) return { lienzos };
     return { lineas: await ocr_(lienzos, prog), ocr: true };
   }
   return { lineas, ocr: false };
@@ -244,7 +331,7 @@ function agruparEnLineas(items) {
 }
 
 /** Foto → lienzo, respetando la orientación del celular y con tamaño manejable. */
-async function imagenACanvas(file) {
+async function imagenACanvas(file, { color = false, max = 2400 } = {}) {
   let bmp;
   try { bmp = await createImageBitmap(file); } catch {
     // Algunos navegadores no tienen createImageBitmap para todos los formatos
@@ -255,12 +342,11 @@ async function imagenACanvas(file) {
       img.src = URL.createObjectURL(file);
     });
   }
-  const max = 2400;
   const escala = Math.min(1, max / Math.max(bmp.width, bmp.height));
   const c = document.createElement('canvas');
   c.width = Math.round(bmp.width * escala); c.height = Math.round(bmp.height * escala);
   const ctx = c.getContext('2d');
-  ctx.filter = 'grayscale(1) contrast(1.35)';
+  if (!color) ctx.filter = 'grayscale(1) contrast(1.35)'; // ayuda al lector gratis; Claude lee mejor la foto real
   ctx.drawImage(bmp, 0, 0, c.width, c.height);
   return c;
 }

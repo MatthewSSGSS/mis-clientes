@@ -240,9 +240,10 @@ const fmt = (n) => (Number(n) ? Number(n).toLocaleString('es-CO') : '');
 /**
  * Pantalla para revisar y corregir las ventas leídas.
  * @param {object[]} ventas resultado de lineasAVentas()
- * @param {{ocr?:boolean, origen?:string}} o
+ * @param {{ocr?:boolean, ia?:boolean, origen?:string}} o
+ *        ia: las leyó Claude (cada venta puede traer `dudas`: campos que no se entendieron bien)
  */
-export function revisarVentas(ventas, { ocr = false, origen = 'Importado del cuaderno' } = {}) {
+export function revisarVentas(ventas, { ocr = false, ia = false, origen = 'Importado del cuaderno' } = {}) {
   const cp = store.ajustes().codigoPais;
   const telefonos = new Set(store.clientes().map((c) => telefonoInternacional(c.telefono, cp)).filter(Boolean));
   const pedidos = new Set(store.clientes().map((c) => String(c.pedido || '')).filter(Boolean));
@@ -260,13 +261,15 @@ export function revisarVentas(ventas, { ocr = false, origen = 'Importado del cua
     cuerpo: `
       ${ocr ? `<div class="banner warn">${icon('scan', 'i-lg')}<div><strong>Revisa los números</strong>
         Leí la letra de la foto. Los nombres suelen salir bien, pero <b>los números pueden tener errores</b>: lo que está en <span style="color:var(--c-red);font-weight:700">rojo</span> seguro hay que corregirlo. Debajo de cada venta ves lo que leí.</div></div>` : ''}
+      ${ia ? `<div class="banner info">${icon('sparkles', 'i-lg')}<div><strong>Leído con inteligencia artificial</strong>
+        Revisa rápido cada venta, sobre todo lo que está en <span style="color:var(--c-red);font-weight:700">rojo</span>: son casillas que no se entendían bien en la foto.</div></div>` : ''}
       <div class="hstack mt-12">
         <span class="small muted spacer">Encontré <b>${plural(filas.length, 'venta', 'ventas')}</b>.</span>
         <button class="btn btn-outline btn-sm" type="button" data-todos>Marcar todas</button>
       </div>
       <div class="stack mt-12" data-lista>
         ${filas.map((f, i) => `
-          <div class="rev-card ${f.elegido ? '' : 'off'}" data-i="${i}">
+          <div class="rev-card ${f.elegido ? '' : 'off'}" data-i="${i}" data-dudas="${esc((f.dudas || []).join(','))}">
             <div class="rev-top">
               <label class="rev-check"><input type="checkbox" ${f.elegido ? 'checked' : ''}> Guardar</label>
               <span class="spacer"></span>
@@ -288,7 +291,7 @@ export function revisarVentas(ventas, { ocr = false, origen = 'Importado del cua
               <button type="button" class="chip chip-sm" data-poliza="si" aria-pressed="${f.poliza === 'si'}">✓ Nissan</button>
               <button type="button" class="chip chip-sm" data-poliza="no" aria-pressed="${f.poliza === 'no'}">✗ No</button>
             </div>
-            <p class="rev-orig">Leí: “${esc(f.linea)}”</p>
+            ${f.linea ? `<p class="rev-orig">Leí: “${esc(f.linea)}”</p>` : ''}
           </div>`).join('')}
       </div>
       <datalist id="dl-rv-modelos">${modelos.map((m) => `<option value="${esc(m)}">`).join('')}</datalist>`,
@@ -297,11 +300,15 @@ export function revisarVentas(ventas, { ocr = false, origen = 'Importado del cua
       const ok = el.querySelector('[data-ok]');
       const marcarDudas = (card) => {
         const v = (f) => card.querySelector(`[data-f="${f}"]`);
-        v('telefono').classList.toggle('duda', !celularOK(v('telefono').value));
-        v('precio').classList.toggle('duda', !valorOK(aPesos(v('precio').value)));
-        v('fechaCompra').classList.toggle('duda', !v('fechaCompra').value);
-        v('nombre').classList.toggle('duda', v('nombre').value.trim().split(/\s+/).length < 2);
-        v('pedido').classList.toggle('duda', !!v('pedido').value && !/^\d{5}$/.test(v('pedido').value.trim()));
+        // Lo que la IA marcó como dudoso queda en rojo hasta que la persona lo toque
+        const dudaIA = new Set((card.dataset.dudas || '').split(',').filter(Boolean));
+        const marcar = (f, mal) => v(f).classList.toggle('duda', mal || (dudaIA.has(f) && !v(f).dataset.editado));
+        marcar('telefono', !celularOK(v('telefono').value));
+        marcar('precio', !valorOK(aPesos(v('precio').value)));
+        marcar('fechaCompra', !v('fechaCompra').value);
+        marcar('nombre', v('nombre').value.trim().split(/\s+/).length < 2);
+        marcar('pedido', !!v('pedido').value && !/^\d{5}$/.test(v('pedido').value.trim()));
+        for (const f of ['vehiculo', 'cedula', 'comision', 'fechaPagoComision']) marcar(f, false);
       };
       const contar = () => {
         const n = el.querySelectorAll('.rev-card input[type=checkbox]:checked').length;
@@ -311,6 +318,7 @@ export function revisarVentas(ventas, { ocr = false, origen = 'Importado del cua
       el.querySelectorAll('.rev-card').forEach((card) => {
         marcarDudas(card);
         card.querySelectorAll('.input').forEach((i) => i.addEventListener('input', () => {
+          i.dataset.editado = '1';
           if (i.matches('[data-dinero]')) { const n = aPesos(i.value); i.value = n ? n.toLocaleString('es-CO') : ''; }
           marcarDudas(card);
         }));

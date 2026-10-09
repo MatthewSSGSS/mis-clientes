@@ -416,6 +416,24 @@ export async function desactivarPush() {
   if (usuario) store.actualizarAjustes({ pushActivo: false });
 }
 
+// --- Lector del cuaderno con IA ------------------------------------------------------
+/**
+ * Manda la foto de una hoja al servidor, que la lee con Claude.
+ * @returns {Promise<{anio:number, ventas:object[]}>}
+ * Si falla, lanza un Error cuyo mensaje es el código del servidor ('limite', 'sin-saldo'…).
+ */
+export async function leerCuadernoIA({ imagen, tipo, anio }) {
+  if (!usuario) throw new Error('no-autorizado');
+  if (!navigator.onLine) throw new Error('conexion');
+  const { data, error } = await cliente().functions.invoke(NUBE.funcionLector || 'leer-cuaderno', { body: { imagen, tipo, anio } });
+  if (error) {
+    let codigo = 'conexion';
+    try { codigo = (await error.context?.json?.())?.error || codigo; } catch { /* sin detalle */ }
+    throw new Error(codigo);
+  }
+  return data;
+}
+
 /** Pide al servidor una notificación de prueba ya mismo. */
 export async function probarPush() {
   const c = await caches.open(CACHE_DATOS);

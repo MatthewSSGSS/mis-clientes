@@ -83,6 +83,7 @@ La app puede usarse **sin cuenta** (datos solo en el equipo) o **con cuenta** (c
 
 - Conexión: `NUBE` en `js/config.js` (URL, clave *publishable* y clave pública VAPID; todas públicas).
 - Base de datos: `supabase/esquema.sql`. Crea tablas, reglas RLS (cada usuario solo ve lo suyo), permisos y tareas programadas (pg_cron). Se ejecuta en *SQL Editor*.
+- Lector del cuaderno con IA: función `supabase/functions/leer-cuaderno/index.ts` (Claude Opus 5.5), desplegada como **`leer-cuaderno`** (`NUBE.funcionLector`) con *Verify JWT* apagado y el secreto `ANTHROPIC_API_KEY`. Solo con sesión iniciada; máximo 40 hojas por usuario al día (tabla `lecturas_cuaderno`).
 - Notificaciones: función `supabase/functions/avisos/index.ts`, desplegada en Supabase como **`Avisos`** (`NUBE.funcionAvisos`) con *Verify JWT* apagado. Usa los secretos `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` y `CRON_SECRET`.
 - `privado/` (no se sube a GitHub) tiene las claves, el SQL con los valores puestos y los secretos.
 - Correos (confirmar cuenta, recuperar contraseña): SMTP propio configurado en *Authentication → Emails*.

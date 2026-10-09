@@ -4,7 +4,7 @@
 // este es el archivo. Cada vez que publiques cambios, sube APP_VERSION.
 // =============================================================================
 
-export const APP_VERSION = '2.1.0';
+export const APP_VERSION = '2.2.0';
 
 // Nube (Supabase): cuentas, sincronización y notificaciones.
 // La URL y la clave "publishable" son públicas: está bien que vayan aquí.
@@ -16,6 +16,8 @@ export const NUBE = {
   clave: 'sb_publishable_xUd9eE8PuAnn1KGicKkPdA_5ZQ1yVNr',
   // Nombre con que se creó la función de notificaciones en Supabase (distingue mayúsculas)
   funcionAvisos: 'Avisos',
+  // Función que lee las fotos del cuaderno con Claude (supabase/functions/leer-cuaderno)
+  funcionLector: 'leer-cuaderno',
   // Clave pública de las notificaciones push (la privada va en los secretos de Supabase)
   vapidPublica: 'BEWMtL-a7Ww-4XwXV8YSwgyEGBGQO-jbhSocePd_gdfqe6St9CP6LizGqs64HZHLIb7oJmR2bejppWk4W9NE1lo',
 };

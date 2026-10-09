@@ -91,3 +91,14 @@ $$);
 select cron.schedule('mis-clientes-limpieza', '0 4 * * *', $$
   delete from public.avisos_enviados where enviado < now() - interval '30 days';
 $$);
+
+-- 5) Lector del cuaderno con IA: registro de lecturas (para el límite diario).
+--    Solo la usa el servidor (función "leer-cuaderno").
+create table if not exists public.lecturas_cuaderno (
+  id      bigint generated always as identity primary key,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  creado  timestamptz not null default now()
+);
+create index if not exists lecturas_cuaderno_user_creado on public.lecturas_cuaderno(user_id, creado);
+alter table public.lecturas_cuaderno enable row level security;
+grant select, insert, delete on public.lecturas_cuaderno to service_role;
