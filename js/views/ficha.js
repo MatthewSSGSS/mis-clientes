@@ -89,9 +89,11 @@ export function render(root, { params, navegar, puedeVolver }) {
         </div>
       </section>
 
+      ${c.etapa === 'vendido' ? seccionVenta(c) : ''}
+
       ${seccionCitas(c)}
 
-      ${seccionNegociacion(c)}
+      ${c.etapa === 'vendido' ? '' : seccionNegociacion(c)}
 
       <section class="section">
         <div class="section-head"><h2 class="section-title">Mensajes que vienen</h2><button class="link-btn" data-programar>+ Programar</button></div>
@@ -113,7 +115,7 @@ export function render(root, { params, navegar, puedeVolver }) {
             ${kv('phone', 'Celular', telefonoBonito(c.telefono))}
             ${c.cumple ? kv('gift', 'Cumpleaños', cumpleTexto(c.cumple)) : ''}
             ${c.vehiculoInteres ? kv('car', 'Vehículo de interés', c.vehiculoInteres) : ''}
-            ${c.vehiculoComprado || c.fechaCompra ? kv('star', 'Compró', [c.vehiculoComprado, c.fechaCompra && fechaCorta(c.fechaCompra)].filter(Boolean).join(' · ')) : ''}
+            ${c.cedula ? kv('contact', 'Cédula o NIT', c.cedula) : ''}
             ${c.origen ? kv('flag', '¿Cómo llegó?', c.origen) : ''}
             ${c.email ? kv('message', 'Correo', c.email) : ''}
             ${kv('calendar', 'Cliente desde', fechaCorta(c.creado.slice(0, 10)))}
@@ -149,7 +151,7 @@ export function render(root, { params, navegar, puedeVolver }) {
   root.querySelector('[data-atras]').addEventListener('click', () => {
     if (puedeVolver()) history.back(); else navegar('#/clientes');
   });
-  root.querySelector('[data-editar]').addEventListener('click', () => abrirFormularioCliente(c.id));
+  root.querySelectorAll('[data-editar]').forEach((b) => b.addEventListener('click', () => abrirFormularioCliente(c.id)));
   root.querySelector('[data-wa]').addEventListener('click', () => abrirMensaje(c));
   root.querySelector('[data-programar]').addEventListener('click', () =>
     abrirFormularioProgramado(null, { destino: { tipo: 'clientes', ids: [c.id] }, titulo: `Mensaje para ${primerNombre(c.nombre)}`, categoria: 'recordatorio' }));
@@ -170,7 +172,11 @@ export function render(root, { params, navegar, puedeVolver }) {
     e.target.doc.blur(); // para que la lista se redibuje de inmediato
     if (nombre) conDocs((x) => { x.documentos.push({ id: `doc_${Date.now().toString(36)}`, nombre, listo: false }); });
   });
-  root.querySelector('[data-doc-pedir]')?.addEventListener('click', () => abrirMensaje(store.cliente(c.id), { plantillaId: 'tpl-docs' }));
+  root.querySelector('[data-doc-pedir]')?.addEventListener('click', () => {
+    const x = store.cliente(c.id);
+    const lista = documentosPendientes(x).map((d) => `• ${d.nombre}`).join('\n');
+    abrirMensaje(x, { texto: `Hola ${primerNombre(x.nombre)}, para el crédito me hacen falta estos documentos:\n${lista}\n` });
+  });
   root.querySelector('[data-doc-iniciar]')?.addEventListener('click', () => conDocs((x) => {
     x.documentos = DOCUMENTOS_CREDITO.map((nombre, i) => ({ id: `doc_${Date.now().toString(36)}_${i}`, nombre, listo: false }));
   }));
@@ -180,7 +186,7 @@ export function render(root, { params, navegar, puedeVolver }) {
     if (nueva === c.etapa) return;
     store.cambiarEtapa(c.id, nueva);
     if (nueva === 'vendido') {
-      aviso(`¡Felicitaciones por la venta! 🎉`, { icono: 'star', ms: 7000, accion: { texto: 'Enviar gracias', fn: () => abrirMensaje(store.cliente(c.id), { plantillaId: 'tpl-post-gracias' }) } });
+      aviso(`¡Felicitaciones por la venta! 🎉`, { icono: 'star', ms: 7000, accion: { texto: 'Enviar gracias', fn: () => abrirMensaje(store.cliente(c.id)) } });
     } else {
       aviso(`Ahora está en "${infoEtapa(nueva).nombre}"`);
     }
@@ -232,6 +238,31 @@ function seccionCitas(c) {
         <div class="li-body"><b>Agendar prueba de manejo o visita</b><span class="small muted">Te recuerda confirmarle el día antes</span></div>
         ${icon('chev-r', 'chev')}
       </button>`}
+    </section>`;
+}
+
+// --- Venta (como en el cuaderno) ---------------------------------------------------
+function seccionVenta(c) {
+  const fila = (k, v, extra = '') => `<div class="venta-item"><span class="kv-k">${k}</span><span class="kv-v">${v}</span>${extra}</div>`;
+  const comiPagada = c.fechaPagoComision && c.fechaPagoComision <= hoy();
+  return `
+    <section class="section">
+      <div class="section-head"><h2 class="section-title">Venta</h2><button class="link-btn" data-editar>Editar</button></div>
+      <div class="card neg-card">
+        <div class="neg-precio">
+          <span class="small muted">Valor de la venta</span>
+          <b>${c.precio ? esc(dinero(c.precio)) : '—'}</b>
+          ${c.poliza ? `<span class="pill" data-color="${c.poliza === 'si' ? 'green' : 'gray'}">${c.poliza === 'si' ? 'Póliza Nissan ✓' : 'Sin póliza Nissan'}</span>` : ''}
+        </div>
+        <div class="venta-grid">
+          ${fila('Vehículo', esc(c.vehiculoComprado || c.vehiculoInteres || '—'))}
+          ${fila('Pedido', esc(c.pedido || '—'))}
+          ${fila('Entrega', c.fechaCompra ? esc(fechaCorta(c.fechaCompra)) : '—')}
+          ${fila('Comisión', c.comision ? esc(dinero(c.comision)) : '—')}
+          ${fila('Pago comisión', c.fechaPagoComision ? esc(fechaCorta(c.fechaPagoComision)) : '—',
+            c.fechaPagoComision ? `<span class="small" style="color:var(--c-${comiPagada ? 'green' : 'amber'});font-weight:700">${comiPagada ? 'Ya pasó la fecha' : 'Pendiente'}</span>` : '')}
+        </div>
+      </div>
     </section>`;
 }
 

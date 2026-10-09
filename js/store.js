@@ -23,7 +23,7 @@ export const CLAVE_LOCAL = 'misclientes:datos';
 export const claveCuenta = (idUsuario) => `misclientes:cuenta:${idUsuario}`;
 let CLAVE = CLAVE_LOCAL;
 
-export const SCHEMA = 3;
+export const SCHEMA = 4;
 const MAX_ENVIOS = 5000; // historial global de envíos que se conserva
 const DIAS_BORRADOS = 90; // cuánto se recuerda que algo se borró (para sincronizar)
 
@@ -51,6 +51,11 @@ const MIGRACIONES = {
     d.borrados = d.borrados && typeof d.borrados === 'object' ? d.borrados : {};
     return d;
   },
+  // 2.1.0: datos de la venta (cuaderno de ventas)
+  4: (d) => {
+    (Array.isArray(d.clientes) ? d.clientes : []).forEach(completarCliente);
+    return d;
+  },
 };
 
 /** Campos de negociación que pueden faltar en clientes viejos. */
@@ -61,6 +66,12 @@ function completarCliente(c) {
   c.formaPago ??= '';
   c.retoma ??= '';
   c.documentos = Array.isArray(c.documentos) ? c.documentos : [];
+  // Venta (como en el cuaderno): precio = valor de venta, fechaCompra = fecha de entrega
+  c.pedido ??= '';
+  c.cedula ??= '';
+  c.poliza ??= '';            // 'si' (la tomó en Nissan) | 'no' | ''
+  c.comision ??= '';
+  c.fechaPagoComision ??= '';
   return c;
 }
 
@@ -92,7 +103,7 @@ export function datosVacios() {
     schema: SCHEMA,
     ajustes: ajustesPorDefecto(),
     clientes: [],
-    plantillas: PLANTILLAS_POR_DEFECTO.map((p) => ({ ...p })),
+    plantillas: [], // ya no se usan: cada mensaje lo escribe la persona
     programados: [],
     reglas: structuredClone(REGLAS_POR_DEFECTO),
     reglasActualizado: '',
@@ -226,6 +237,7 @@ export function nuevoCliente(campos = {}) {
     etapa: 'nuevo', origen: '', vehiculoInteres: '', vehiculoComprado: '', fechaCompra: '',
     proximoSeguimiento: '', notas: '', historial: [],
     version: '', color: '', precio: '', formaPago: '', retoma: '', documentos: [],
+    pedido: '', cedula: '', poliza: '', comision: '', fechaPagoComision: '',
     creado: ahora(), actualizado: ahora(),
     ...campos,
   };

@@ -85,8 +85,8 @@ function escribirPorCita(id) {
   const ct = store.cita(id);
   const c = ct && store.cliente(ct.clienteId);
   if (!c) return;
-  const plantillaId = ct.fecha === hoy() ? 'tpl-cita-hoy' : 'tpl-cita-confirmar';
-  abrirMensaje(c, { plantillaId: store.plantilla(plantillaId) ? plantillaId : 'tpl-cita-confirmar', extra: variablesCita(ct) });
+  const v = variablesCita(ct);
+  abrirMensaje(c, { ayuda: `${v['{cita}']} · ${v['{cita_fecha}']} · ${v['{cita_hora}']}` });
 }
 
 export function marcarHecha(id) {
@@ -328,7 +328,7 @@ function citaAgendada(ct) {
     pie: '<button class="btn btn-primary btn-lg" data-ok>Listo</button>',
     montar: (el) => {
       el.querySelector('[data-ok]').addEventListener('click', () => cerrarHoja());
-      el.querySelector('[data-a="wa"]').addEventListener('click', () => abrirMensaje(c, { plantillaId: 'tpl-cita-confirmar', extra: variablesCita(ct) }));
+      el.querySelector('[data-a="wa"]').addEventListener('click', () => escribirPorCita(ct.id));
       el.querySelector('[data-a="calendario"]').addEventListener('click', () => agregarAlCalendario(ct));
     },
   });

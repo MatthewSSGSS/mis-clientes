@@ -391,7 +391,14 @@ export async function activarPush({ pedirPermiso = true } = {}) {
   if (permiso !== 'granted') throw new Error('permiso');
   const reg = await navigator.serviceWorker.ready;
   let sub = await reg.pushManager.getSubscription();
-  if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uABytes(NUBE.vapidPublica) });
+  if (!sub) {
+    const pedir = () => reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uABytes(NUBE.vapidPublica) });
+    try { sub = await pedir(); } catch {
+      // A veces el servicio de Apple/Google no responde a la primera: reintentar una vez
+      await new Promise((r) => setTimeout(r, 2500));
+      try { sub = await pedir(); } catch (e2) { throw new Error(`servicio-push: ${e2?.message || e2}`); }
+    }
+  }
   const j = sub.toJSON();
   const { error } = await cliente().rpc('registrar_push', { p_endpoint: j.endpoint, p_p256dh: j.keys?.p256dh || '', p_auth: j.keys?.auth || '' });
   if (error) throw error;

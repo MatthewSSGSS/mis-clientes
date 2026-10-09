@@ -19,17 +19,21 @@ const RAPIDOS = [
 
 /**
  * @param {string} [id] si viene, edita ese cliente; si no, crea uno nuevo
- * @param {{alGuardar?:(c:object)=>void, campos?:object, negociacion?:boolean}} [o]
+ * @param {{alGuardar?:(c:object)=>void, campos?:object, negociacion?:boolean, venta?:boolean}} [o]
  *        negociacion: abrir directo en la sección de negociación
+ *        venta: "Registrar venta" (cliente que ya compró, con los datos del cuaderno)
  */
-export function abrirFormularioCliente(id, { alGuardar, campos, negociacion = false } = {}) {
+export function abrirFormularioCliente(id, { alGuardar, campos, negociacion = false, venta = false } = {}) {
   const existente = id ? store.cliente(id) : null;
-  const c = existente ? structuredClone(existente) : store.nuevoCliente({ proximoSeguimiento: sumarDias(hoy(), 2), ...campos });
+  const c = existente ? structuredClone(existente)
+    : store.nuevoCliente(venta ? { etapa: 'vendido', fechaCompra: hoy(), ...campos } : { proximoSeguimiento: sumarDias(hoy(), 2), ...campos });
+  const vendido = c.etapa === 'vendido';
+  const pesos = (n) => (Number(n) ? Number(n).toLocaleString('es-CO') : '');
   const [cMes, cDia] = (c.cumple || '').split('-').map((x) => Number(x) || '');
   const modelos = store.ajustes().modelos || [];
 
   abrirHoja({
-    titulo: existente ? 'Editar cliente' : 'Nuevo cliente',
+    titulo: existente ? 'Editar cliente' : venta ? 'Registrar venta' : 'Nuevo cliente',
     alta: true,
     cuerpo: `
       <form id="f-cliente" novalidate autocomplete="off">
@@ -42,6 +46,49 @@ export function abrirFormularioCliente(id, { alGuardar, campos, negociacion = fa
           <input id="f-tel" class="input" name="telefono" type="tel" inputmode="tel" value="${esc(c.telefono)}" placeholder="Ej: 300 123 4567" required>
           <span class="hint" data-tel-aviso></span>
         </div>
+        <div class="field">
+          <label for="f-cedula">Cédula o NIT</label>
+          <input id="f-cedula" class="input" name="cedula" inputmode="numeric" value="${esc(c.cedula)}" placeholder="opcional">
+        </div>
+
+        <div class="venta-box" data-compra ${vendido ? '' : 'hidden'}>
+          <div class="venta-tit">${icon('star', 'i-sm')} Datos de la venta</div>
+          <div class="row">
+            <div class="field">
+              <label for="f-pedido">Pedido</label>
+              <input id="f-pedido" class="input" name="pedido" inputmode="numeric" value="${esc(c.pedido)}" placeholder="Ej: 55480">
+            </div>
+            <div class="field">
+              <label for="f-fcompra">Fecha de entrega</label>
+              <input id="f-fcompra" class="input" name="fechaCompra" type="date" value="${esc(c.fechaCompra)}">
+            </div>
+          </div>
+          <div class="field">
+            <label for="f-comprado">Vehículo</label>
+            <input id="f-comprado" class="input" name="vehiculoComprado" list="dl-modelos" value="${esc(c.vehiculoComprado)}" placeholder="Ej: Kicks Play Advance">
+          </div>
+          <div class="field">
+            <label for="f-valor">Valor de la venta</label>
+            <input id="f-valor" class="input" name="valorVenta" inputmode="numeric" value="${esc(pesos(c.precio))}" placeholder="Ej: 100.960.100" data-dinero>
+          </div>
+          <div class="field">
+            <span class="label">Póliza</span>
+            <div class="chips chips-wrap" data-polizas>
+              <button type="button" class="chip" data-poliza="si" aria-pressed="${c.poliza === 'si'}">${icon('check', 'i-sm')} La tomó en Nissan</button>
+              <button type="button" class="chip" data-poliza="no" aria-pressed="${c.poliza === 'no'}">${icon('x', 'i-sm')} No la tomó en Nissan</button>
+            </div>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label for="f-comi">Comisión</label>
+              <input id="f-comi" class="input" name="comision" inputmode="numeric" value="${esc(pesos(c.comision))}" placeholder="Ej: 743.289" data-dinero>
+            </div>
+            <div class="field">
+              <label for="f-fcomi">Pago de la comisión</label>
+              <input id="f-fcomi" class="input" name="fechaPagoComision" type="date" value="${esc(c.fechaPagoComision)}">
+            </div>
+          </div>
+        </div>
 
         <div class="field">
           <span class="label">Etapa</span>
@@ -50,7 +97,7 @@ export function abrirFormularioCliente(id, { alGuardar, campos, negociacion = fa
           </div>
         </div>
 
-        <div class="field">
+        <div class="field" data-interes ${vendido ? 'hidden' : ''}>
           <label for="f-veh">Vehículo de interés</label>
           <input id="f-veh" class="input" name="vehiculoInteres" list="dl-modelos" value="${esc(c.vehiculoInteres)}" placeholder="Ej: Kicks">
         </div>
@@ -93,20 +140,7 @@ export function abrirFormularioCliente(id, { alGuardar, campos, negociacion = fa
           </div>
         </div>
 
-        <div data-compra ${c.etapa === 'vendido' || c.fechaCompra ? '' : 'hidden'}>
-          <div class="row">
-            <div class="field">
-              <label for="f-comprado">Vehículo comprado</label>
-              <input id="f-comprado" class="input" name="vehiculoComprado" list="dl-modelos" value="${esc(c.vehiculoComprado)}">
-            </div>
-            <div class="field">
-              <label for="f-fcompra">Fecha de compra</label>
-              <input id="f-fcompra" class="input" name="fechaCompra" type="date" value="${esc(c.fechaCompra)}">
-            </div>
-          </div>
-        </div>
-
-        <details class="form-extra" data-negociacion ${negociacion || c.precio || c.formaPago || c.version ? 'open' : ''}>
+        <details class="form-extra" data-negociacion ${vendido ? 'hidden' : ''} ${negociacion || (!vendido && (c.precio || c.formaPago || c.version)) ? 'open' : ''}>
           <summary>${icon('tag', 'i-sm')} Negociación <span class="muted small">versión, precio, forma de pago, retoma</span></summary>
           <div class="row">
             <div class="field">
@@ -158,11 +192,26 @@ export function abrirFormularioCliente(id, { alGuardar, campos, negociacion = fa
       el.querySelectorAll('[data-etapa]').forEach((b) => b.addEventListener('click', () => {
         etapa = b.dataset.etapa;
         el.querySelectorAll('[data-etapa]').forEach((x) => x.classList.toggle('on', x === b));
-        if (etapa === 'vendido') {
-          el.querySelector('[data-compra]').hidden = false;
+        const v = etapa === 'vendido';
+        el.querySelector('[data-compra]').hidden = !v;
+        el.querySelector('[data-interes]').hidden = v;
+        el.querySelector('[data-negociacion]').hidden = v;
+        if (v) {
           if (!f.fechaCompra.value) f.fechaCompra.value = hoy();
           if (!f.vehiculoComprado.value) f.vehiculoComprado.value = f.vehiculoInteres.value;
+          if (!f.valorVenta.value && f.precio.value) f.valorVenta.value = f.precio.value;
         }
+      }));
+
+      // Venta: póliza (tocar de nuevo la quita) y valores con puntos de miles
+      let poliza = c.poliza;
+      el.querySelectorAll('[data-poliza]').forEach((b) => b.addEventListener('click', () => {
+        poliza = poliza === b.dataset.poliza ? '' : b.dataset.poliza;
+        el.querySelectorAll('[data-poliza]').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.poliza === poliza)));
+      }));
+      el.querySelectorAll('[data-dinero]').forEach((i) => i.addEventListener('input', () => {
+        const n = Number(i.value.replace(/\D/g, ''));
+        i.value = n ? n.toLocaleString('es-CO') : '';
       }));
 
       el.querySelectorAll('[data-rapidos] .chip').forEach((b) => b.addEventListener('click', () => {
@@ -225,7 +274,12 @@ export function abrirFormularioCliente(id, { alGuardar, campos, negociacion = fa
           notas: f.notas.value.trim(),
           version: f.version.value.trim(),
           color: f.color.value.trim(),
-          precio: Number(f.precio.value.replace(/\D/g, '')) || '',
+          precio: (etapa === 'vendido' ? Number(f.valorVenta.value.replace(/\D/g, '')) : Number(f.precio.value.replace(/\D/g, ''))) || '',
+          cedula: f.cedula.value.trim(),
+          pedido: f.pedido.value.trim(),
+          poliza,
+          comision: Number(f.comision.value.replace(/\D/g, '')) || '',
+          fechaPagoComision: f.fechaPagoComision.value,
           formaPago,
           retoma: tieneRetoma.checked ? (f.retoma.value.trim() || 'Sí') : '',
         });
@@ -240,7 +294,7 @@ export function abrirFormularioCliente(id, { alGuardar, campos, negociacion = fa
         recordarModelo(c.vehiculoInteres);
         recordarModelo(c.vehiculoComprado);
         cerrarHoja();
-        aviso(existente ? 'Cambios guardados' : `${c.nombre.split(' ')[0]} quedó registrado`);
+        aviso(existente ? 'Cambios guardados' : venta ? `Venta de ${c.nombre.split(' ')[0]} registrada` : `${c.nombre.split(' ')[0]} quedó registrado`);
         alGuardar?.(c);
       });
     },

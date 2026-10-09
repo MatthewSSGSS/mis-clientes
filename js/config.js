@@ -4,7 +4,7 @@
 // este es el archivo. Cada vez que publiques cambios, sube APP_VERSION.
 // =============================================================================
 
-export const APP_VERSION = '2.0.2';
+export const APP_VERSION = '2.1.0';
 
 // Nube (Supabase): cuentas, sincronización y notificaciones.
 // La URL y la clave "publishable" son públicas: está bien que vayan aquí.
@@ -96,20 +96,18 @@ export const PAISES = [
   { codigo: '34',  nombre: 'España' },
 ];
 
-// Variables que se pueden usar dentro de un mensaje
+// Variables para un mensaje programado a varios clientes: se cambian por los
+// datos de cada uno al enviar ("Hola {nombre}" → "Hola Laura")
 export const VARIABLES = [
-  { clave: '{nombre}',          desc: 'Primer nombre del cliente' },
-  { clave: '{nombre_completo}', desc: 'Nombre completo' },
-  { clave: '{vehiculo}',        desc: 'Vehículo comprado o de interés' },
-  { clave: '{mi_nombre}',       desc: 'Tu nombre' },
-  { clave: '{precio}',          desc: 'Precio cotizado' },
-  { clave: '{documentos_pendientes}', desc: 'Lista de documentos que faltan' },
-  { clave: '{cita}',            desc: 'Tipo de cita (solo en citas)' },
-  { clave: '{cita_fecha}',      desc: 'Día de la cita (solo en citas)' },
-  { clave: '{cita_hora}',       desc: 'Hora de la cita (solo en citas)' },
+  { clave: '{nombre}',          desc: 'Primer nombre del cliente', boton: 'Nombre' },
+  { clave: '{nombre_completo}', desc: 'Nombre completo',           boton: 'Nombre completo' },
+  { clave: '{vehiculo}',        desc: 'Su vehículo',               boton: 'Vehículo' },
+  { clave: '{mi_nombre}',       desc: 'Tu nombre',                 boton: 'Mi nombre' },
 ];
 
-// Plantillas que vienen con la app. Los ids deben ser únicos y no cambiar
+// Plantillas de versiones anteriores. Ya NO se usan (cada mensaje lo escribe
+// la persona); se conservan solo para que los datos viejos sigan funcionando.
+// Plantillas que venían con la app. Los ids deben ser únicos y no cambiar
 // (las reglas automáticas los usan).
 export const PLANTILLAS_POR_DEFECTO = [
   // Cumpleaños
@@ -156,11 +154,11 @@ export const PLANTILLAS_POR_DEFECTO = [
 
 // Reglas automáticas: generan mensajes "para hoy" sin que tengas que programarlos.
 export const REGLAS_POR_DEFECTO = {
-  cumpleanos:    { activa: true, plantillaId: 'tpl-cumple-1' },
-  seguimiento:   { activa: true, plantillaId: 'tpl-seg-1' },
-  aniversario:   { activa: true, plantillaId: 'tpl-post-aniv' },
-  mantenimiento: { activa: true, plantillaId: 'tpl-post-mant', meses: 6 },
-  citas:         { activa: true, plantillaId: 'tpl-cita-confirmar' },
+  cumpleanos:    { activa: true },
+  seguimiento:   { activa: true },
+  aniversario:   { activa: true },
+  mantenimiento: { activa: true, meses: 6 },
+  citas:         { activa: true },
 };
 
 // Cuántos días hacia atrás se siguen mostrando mensajes que no enviaste

@@ -8,7 +8,8 @@ import { ETAPAS } from '../config.js';
 import { abrirFormularioCliente } from '../cliente-form.js';
 import { menuImportar } from '../documentos.js';
 import { icon, avatar, pillEtapa, vacio, botonTema, botonInicio } from '../ui.js';
-import { esc, norm, relativo, hoy, plural, telefonoBonito, debounce } from '../util.js';
+import { esc, norm, relativo, hoy, plural, telefonoBonito, debounce, nombreMes, fechaCorta } from '../util.js';
+import { dinero, dineroCorto } from '../engine.js';
 
 const ORDENES = [
   { id: 'recientes', nombre: 'Recientes' },
@@ -33,7 +34,7 @@ export function render(root, { params }) {
           <h1>Clientes</h1>
           <p>${plural(todos.length, 'cliente', 'clientes')}</p>
         </div>
-        <div class="hstack">${botonInicio()}${botonTema()}<button class="btn btn-ghost btn-icon" data-importar aria-label="Importar clientes">${icon('upload')}</button><button class="btn btn-primary" data-nuevo>${icon('plus')} Nuevo</button></div>
+        <div class="hstack">${botonInicio()}${botonTema()}<button class="btn btn-ghost btn-icon" data-importar aria-label="Importar clientes">${icon('upload')}</button><button class="btn btn-primary" data-nuevo>${icon('plus')} ${filtro === 'vendido' ? 'Venta' : 'Nuevo'}</button></div>
       </div>
 
       <div class="sticky-tools">
@@ -46,12 +47,12 @@ export function render(root, { params }) {
         </div>
         <div class="chips" role="group" aria-label="Filtrar por etapa">
           <a class="chip" href="#/clientes" aria-pressed="${filtro === 'todos'}">Todos <span class="count">${todos.length}</span></a>
-          ${ETAPAS.map((e) => {
+          ${[...ETAPAS.filter((e) => e.id === 'vendido'), ...ETAPAS.filter((e) => e.id !== 'vendido')].map((e) => {
             const n = todos.filter((c) => c.etapa === e.id).length;
             return `<a class="chip" href="#/clientes/${e.id}" aria-pressed="${filtro === e.id}">${esc(e.nombre)} <span class="count">${n}</span></a>`;
           }).join('')}
         </div>
-        <div class="hstack small">
+        <div class="hstack small" ${filtro === 'vendido' ? 'hidden' : ''}>
           <span class="muted">Ordenar:</span>
           <div class="chips">
             ${ORDENES.map((o) => `<button class="chip" style="height:30px" data-orden="${o.id}" aria-pressed="${orden === o.id}">${o.nombre}</button>`).join('')}
@@ -66,7 +67,7 @@ export function render(root, { params }) {
   const pintar = () => pintarLista(lista, filtro);
   pintar();
 
-  root.querySelector('[data-nuevo]').addEventListener('click', () => abrirFormularioCliente());
+  root.querySelector('[data-nuevo]').addEventListener('click', () => abrirFormularioCliente(null, { venta: filtro === 'vendido' }));
   root.querySelector('[data-importar]').addEventListener('click', () => menuImportar());
   root.querySelector('[data-buscar]').addEventListener('input', debounce((e) => {
     busqueda = e.target.value; limite = POR_PAGINA; pintar();
@@ -88,7 +89,7 @@ function filtrar(filtro) {
       norm(c.nombre).includes(q) ||
       norm(c.vehiculoInteres).includes(q) || norm(c.vehiculoComprado).includes(q) ||
       norm(c.email).includes(q) || norm(c.notas).includes(q) ||
-      (qDig.length >= 3 && String(c.telefono).replace(/\D/g, '').includes(qDig)));
+      (qDig.length >= 3 && [c.telefono, c.cedula, c.pedido].some((x) => String(x || '').replace(/\D/g, '').includes(qDig))));
   }
   const copia = [...lista];
   if (orden === 'nombre') copia.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
@@ -113,6 +114,7 @@ function pintarLista(el, filtro) {
     el.innerHTML = vacio({ icono: 'search', titulo: 'Sin resultados', texto: busqueda ? `No hay clientes que coincidan con "${esc(busqueda)}".` : 'No hay clientes en esta etapa.' });
     return;
   }
+  if (filtro === 'vendido') { pintarVentas(el, lista); return; }
   const h = hoy();
   el.innerHTML = `
     <div class="list">
@@ -135,4 +137,40 @@ function pintarLista(el, filtro) {
     </div>
     ${lista.length > limite ? `<button class="btn btn-outline btn-block mt-16" data-mas>Mostrar más (${lista.length - limite})</button>` : ''}`;
   el.querySelector('[data-mas]')?.addEventListener('click', () => { limite += POR_PAGINA; pintarLista(el, filtro); });
+}
+
+// --- Vendidos: agrupados por mes de entrega, como el cuaderno ------------------------
+function pintarVentas(el, lista) {
+  const grupos = new Map();
+  for (const c of [...lista].sort((a, b) => (b.fechaCompra || '').localeCompare(a.fechaCompra || '') || (b.pedido || '').localeCompare(a.pedido || ''))) {
+    const k = (c.fechaCompra || '').slice(0, 7) || 'sin-fecha';
+    if (!grupos.has(k)) grupos.set(k, []);
+    grupos.get(k).push(c);
+  }
+  const suma = (l, campo) => l.reduce((t, c) => t + (Number(c[campo]) || 0), 0);
+  el.innerHTML = [...grupos.entries()].map(([k, l]) => {
+    const titulo = k === 'sin-fecha' ? 'Sin fecha de entrega' : `${nombreMes(Number(k.slice(5, 7)))} ${k.slice(0, 4)}`;
+    const total = suma(l, 'precio'), comi = suma(l, 'comision');
+    return `
+      <section class="mes-ventas">
+        <div class="mes-head">
+          <h2>${esc(titulo.charAt(0).toUpperCase() + titulo.slice(1))}</h2>
+          <span class="mes-tot">${plural(l.length, 'venta', 'ventas')}${total ? ` · ${esc(dineroCorto(total))}` : ''}${comi ? ` · Comisión ${esc(dinero(comi))}` : ''}</span>
+        </div>
+        <div class="list">
+          ${l.map((c) => `
+            <a class="list-item venta-row" href="#/cliente/${c.id}">
+              <div class="venta-ped"><b>${esc(c.pedido || '—')}</b><span>${c.fechaCompra ? esc(fechaCorta(c.fechaCompra)) : ''}</span></div>
+              <div class="li-body">
+                <div class="li-title">${esc(c.nombre)}</div>
+                <div class="li-sub">${icon('car')} ${esc(c.vehiculoComprado || c.vehiculoInteres || 'Sin vehículo')}${c.poliza === 'si' ? ' · Póliza ✓' : ''}</div>
+              </div>
+              <div class="li-end" style="flex-direction:column;align-items:flex-end;gap:2px">
+                <b class="venta-valor">${c.precio ? esc(dineroCorto(c.precio)) : ''}</b>
+                ${c.comision ? `<span class="li-meta">Com. ${esc(dinero(c.comision))}</span>` : ''}
+              </div>
+            </a>`).join('')}
+        </div>
+      </section>`;
+  }).join('');
 }

@@ -1,13 +1,12 @@
 // =============================================================================
 // enviar.js — Ventanas para enviar mensajes por WhatsApp:
-//   • abrirMensaje(): escribir a un cliente (con plantilla o en blanco)
+//   • abrirMensaje(): escribir a un cliente (el texto lo escribe la persona)
 //   • modoSerie(): ir enviando todos los pendientes uno tras otro
 // =============================================================================
 
 import * as store from './store.js';
 import * as wa from './whatsapp.js';
-import { CATEGORIAS } from './config.js';
-import { llenarTexto, textoDe } from './engine.js';
+import { textoDe, variablesCita } from './engine.js';
 import { abrirHoja, cerrarHoja, aviso, icon, avatar, pillCategoria, categoria, vacio } from './ui.js';
 import { esc, uid, hoy, sumarDias, telefonoBonito, relativo } from './util.js';
 
@@ -50,15 +49,6 @@ function aplicarSiguiente(el, c) {
   };
 }
 
-function opcionesPlantillas(seleccion) {
-  return CATEGORIAS.map((cat) => {
-    const ps = store.plantillas().filter((p) => p.categoria === cat.id);
-    if (!ps.length) return '';
-    return `<optgroup label="${esc(cat.nombre)}">${ps.map((p) =>
-      `<option value="${p.id}" ${p.id === seleccion ? 'selected' : ''}>${esc(p.titulo)}</option>`).join('')}</optgroup>`;
-  }).join('');
-}
-
 function cabeceraCliente(c, extra = '') {
   return `
     <div class="serie-who">
@@ -71,17 +61,30 @@ function cabeceraCliente(c, extra = '') {
     </div>`;
 }
 
+/** Línea de ayuda sobre el mensaje (p. ej. los datos de la cita), si aplica. */
+function ayudaDe(item) {
+  if (item?.citaId) {
+    const ct = store.cita(item.citaId);
+    if (ct) {
+      const v = variablesCita(ct);
+      return `${v['{cita}']} · ${v['{cita_fecha}']} · ${v['{cita_hora}']}`;
+    }
+  }
+  return '';
+}
+
 /**
- * Ventana para escribirle a un cliente.
+ * Ventana para escribirle a un cliente. El mensaje lo escribe la persona.
  * @param {object} c cliente
  * @param {object} [o]
- * @param {object} [o.item]        pendiente de engine.js (si viene de "Para hoy")
- * @param {string} [o.plantillaId] plantilla inicial
- * @param {object} [o.extra]       variables extra, p. ej. de una cita ({cita_hora}…)
+ * @param {object} [o.item]  pendiente de engine.js (si viene de "Para hoy")
+ * @param {string} [o.texto] texto inicial (p. ej. la lista de documentos que faltan)
+ * @param {string} [o.ayuda] dato útil para escribir el mensaje (se muestra arriba)
  */
-export function abrirMensaje(c, { item, plantillaId, extra = {} } = {}) {
+export function abrirMensaje(c, { item, texto, ayuda } = {}) {
   if (!c.telefono) { aviso('Este cliente no tiene teléfono', { icono: 'x' }); return; }
-  const inicial = item ? textoDe(item) : plantillaId ? llenarTexto(store.plantilla(plantillaId)?.texto, c, extra) : '';
+  const inicial = texto ?? (item ? textoDe(item) : '');
+  const nota = ayuda || ayudaDe(item);
   const esSeguimiento = item?.tipo === 'seguimiento';
 
   abrirHoja({
@@ -89,17 +92,10 @@ export function abrirMensaje(c, { item, plantillaId, extra = {} } = {}) {
     alta: !item,
     cuerpo: `
       ${cabeceraCliente(c, item ? pillCategoria(item.categoria) : '')}
-      ${item ? '' : `
-        <div class="field">
-          <label for="m-tpl">Plantilla</label>
-          <select id="m-tpl" class="select">
-            <option value="">Mensaje en blanco</option>
-            ${opcionesPlantillas(plantillaId)}
-          </select>
-        </div>`}
+      ${nota ? `<p class="small muted" style="margin:-4px 0 12px">${icon('calendar', 'i-sm')} ${esc(nota)}</p>` : ''}
       <div class="field">
-        <label for="m-texto">Mensaje <span class="muted small">(puedes editarlo)</span></label>
-        <textarea id="m-texto" class="textarea" rows="7" ${item ? '' : 'autofocus'}>${esc(inicial)}</textarea>
+        <label for="m-texto">Tu mensaje</label>
+        <textarea id="m-texto" class="textarea" rows="7" autofocus placeholder="Escribe aquí lo que le quieres decir a ${esc(c.nombre.split(' ')[0])}…">${esc(inicial)}</textarea>
       </div>
       ${esSeguimiento ? htmlSiguiente(c) : ''}`,
     pie: `
@@ -110,20 +106,14 @@ export function abrirMensaje(c, { item, plantillaId, extra = {} } = {}) {
       const btn = el.querySelector('[data-enviar]');
       const actualizar = () => { btn.href = wa.enlace(c, ta.value); };
       ta.addEventListener('input', actualizar);
-      el.querySelector('#m-tpl')?.addEventListener('change', (e) => {
-        const p = store.plantilla(e.target.value);
-        ta.value = p ? llenarTexto(p.texto, c, extra) : '';
-        actualizar();
-      });
       if (esSeguimiento) conectarSiguiente(el);
 
       btn.addEventListener('click', () => {
-        const tpl = store.plantilla(el.querySelector('#m-tpl')?.value);
         const key = item?.key || `manual:${uid()}`;
         store.registrarEnvio({
           key, clienteId: c.id, estado: 'enviado', texto: ta.value,
-          categoria: item?.categoria || tpl?.categoria || '',
-          titulo: item?.titulo || tpl?.titulo || 'Mensaje',
+          categoria: item?.categoria || '',
+          titulo: item?.titulo || 'Mensaje',
         });
         const deshacerSiguiente = esSeguimiento ? aplicarSiguiente(el, c) : () => {};
         // Esperar un instante para que el navegador abra WhatsApp antes de cerrar
@@ -180,8 +170,9 @@ export function modoSerie(items) {
       </div>
       ${cabeceraCliente(c, `<span class="pill no-dot" data-color="${cat.color}">${icon(cat.icon, 'i-sm')}${esc(it.titulo)}</span>`)}
       <div class="field">
-        <label for="s-texto">Mensaje</label>
-        <textarea id="s-texto" class="textarea" rows="7">${esc(texto)}</textarea>
+        <label for="s-texto">Tu mensaje</label>
+        ${ayudaDe(it) ? `<span class="hint">${icon('calendar', 'i-sm')} ${esc(ayudaDe(it))}</span>` : ''}
+        <textarea id="s-texto" class="textarea" rows="7" placeholder="Escribe aquí lo que le quieres decir a ${esc(c.nombre.split(' ')[0])}…">${esc(texto)}</textarea>
       </div>
       ${it.tipo === 'seguimiento' ? htmlSiguiente(c) : ''}`;
     foot.innerHTML = `

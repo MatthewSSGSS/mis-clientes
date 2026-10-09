@@ -18,11 +18,12 @@
 import * as store from './store.js';
 import { abrirHoja, cerrarHoja, aviso, icon } from './ui.js';
 import {
-  esc, plural, uid, telefonoInternacional, elegirArchivo, leerArchivo, cargarScript,
+  esc, plural, uid, telefonoInternacional, elegirArchivo, leerArchivo, cargarScript, esIOS,
 } from './util.js';
 import {
-  importarExcel, importarContactos, filasAClientes, vistaPreviaImportacion, ETIQUETAS, aCumple,
+  importarExcel, importarContactos, filasAClientes, vistaPreviaImportacion, ETIQUETAS, aCumple, descargarPlantillaVentas,
 } from './importar.js';
+import { pareceCuaderno, lineasAVentas, revisarVentas } from './cuaderno.js';
 
 const LIBS = {
   mammoth: 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js',
@@ -35,9 +36,10 @@ const MAX_PAGINAS_OCR = 15;
 // --- Menú "Importar clientes" --------------------------------------------------
 export function menuImportar() {
   const opciones = [
-    { id: 'doc', icono: 'scan', color: 'red', titulo: 'PDF, Word o foto del cuaderno', sub: 'Saco los nombres y celulares, y tú los revisas' },
-    { id: 'lista', icono: 'note', color: 'amber', titulo: 'Escribir o pegar una lista', sub: 'Un cliente por línea: nombre, celular y carro' },
-    { id: 'excel', icono: 'sheet', color: 'green', titulo: 'Excel o CSV', sub: 'Con columnas Nombre y Celular' },
+    { id: 'pegar', icono: 'note', color: 'green', titulo: 'Pegar el texto de la foto del cuaderno', sub: 'La forma más confiable: copias el texto de la foto con el iPhone y lo pegas aquí' },
+    { id: 'doc', icono: 'scan', color: 'red', titulo: 'Foto o PDF del cuaderno', sub: 'La app intenta leer la letra; revisa los números' },
+    { id: 'excel', icono: 'sheet', color: 'violet', titulo: 'Excel o CSV', sub: 'Con las columnas del cuaderno, o al menos Nombre y Celular' },
+    { id: 'plantilla', icono: 'download', color: 'amber', titulo: 'Descargar plantilla de Excel', sub: 'Con las mismas columnas del cuaderno, para llenarla y luego importarla' },
     { id: 'vcf', icono: 'contact', color: 'blue', titulo: 'Contactos (.vcf)', sub: 'Exportados de iCloud, Google o tu celular' },
   ];
   abrirHoja({
@@ -58,6 +60,7 @@ export function menuImportar() {
       if (op === 'doc') importarDocumento();
       else if (op === 'excel') importarExcel();
       else if (op === 'vcf') importarContactos();
+      else if (op === 'plantilla') descargarPlantillaVentas();
       else setTimeout(escribirLista, 60);
     })),
   });
@@ -66,12 +69,21 @@ export function menuImportar() {
 // --- Escribir o pegar una lista -----------------------------------------------
 export function escribirLista() {
   abrirHoja({
-    titulo: 'Escribir una lista',
+    titulo: 'Pegar o escribir ventas',
     alta: true,
     cuerpo: `
-      <p class="small muted">Escribe o pega un cliente por línea. No importa el orden ni los separadores.</p>
+      <details class="form-extra" ${esIOS ? 'open' : ''}>
+        <summary>${icon('scan', 'i-sm')} Cómo copiar el texto de la foto en el iPhone</summary>
+        <ol class="install-steps" style="margin-bottom:14px">
+          <li><span>Toma la foto de la hoja del cuaderno (bien derecha y con buena luz).</span></li>
+          <li><span>Ábrela en <b>Fotos</b> y toca el botón de <b>texto</b> (un cuadrito con líneas, abajo a la derecha).</span></li>
+          <li><span>Toca <b>"Seleccionar todo"</b> y luego <b>"Copiar"</b>.</span></li>
+          <li><span>Vuelve aquí, mantén el dedo en el cuadro de abajo y toca <b>"Pegar"</b>.</span></li>
+        </ol>
+      </details>
+      <p class="small muted">También puedes escribir una venta por línea, en el orden del cuaderno. No importan los separadores.</p>
       <div class="field mt-12">
-        <textarea id="lista-txt" class="textarea" rows="12" autofocus placeholder="Juan Pérez 300 123 4567 Kicks&#10;María López - 315 555 1234 - Frontier - cumple 14/03&#10;Carlos Ruiz, 320 555 0000, quiere crédito"></textarea>
+        <textarea id="lista-txt" class="textarea" rows="12" autofocus placeholder="55480 Kicks Play Premium Dairo Luis Luna Melendez X 1052037922 3015929877 $100.960.100 08 ENE $743.289 20 FEB"></textarea>
       </div>`,
     pie: `<button class="btn btn-outline" data-cancel>Cancelar</button><button class="btn btn-primary" data-ok>Continuar ${icon('chev-r')}</button>`,
     montar: (el) => {
@@ -301,6 +313,8 @@ function mostrarSiEsTabla(filas, origen, prog) {
 
 function procesarLineas(lineas, { ocr = false, origen, archivo } = {}) {
   const limpias = lineas.map((l) => String(l ?? '').replace(/\s+/g, ' ').trim()).filter(Boolean);
+  // ¿Es el cuaderno de ventas? (pedido, celular, valor, fechas…)
+  if (pareceCuaderno(limpias)) { revisarVentas(lineasAVentas(limpias), { ocr, origen }); return; }
   if (mostrarSiEsTabla(limpias.map((l) => l.split(/\s*\|\s*|\t/)), origen)) return;
   const candidatos = lineasAClientes(limpias);
   if (!candidatos.length) {

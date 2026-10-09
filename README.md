@@ -53,7 +53,8 @@ js/
   enviar.js           Ventanas de envío (individual y "enviar en serie")
   cliente-form.js     Formulario de cliente
   importar.js         Excel/CSV, contactos .vcf, copia de seguridad, exportar, ejemplos
-  documentos.js       PDF, Word, fotos del cuaderno (OCR) y listas escritas → clientes
+  documentos.js       PDF, Word, fotos (OCR) y listas escritas → clientes
+  cuaderno.js         Lee las ventas del cuaderno (pedido, vehículo, cliente, póliza, cédula, celular, valor, entrega, comisión)
   recordatorios.js    Recordatorio diario (calendario) y número de pendientes en el ícono
   citas.js            Citas (pruebas de manejo, visitas, entregas): agendar, lista, hecha, calendario
   sesion.js           Cerrar sesión, pantalla de entrada y PIN opcional
@@ -68,7 +69,7 @@ cal/                  Eventos .ics del recordatorio diario (generados por tools/
 
 | Quiero… | Dónde |
 |---|---|
-| Cambiar o agregar plantillas por defecto | `PLANTILLAS_POR_DEFECTO` en `js/config.js` (solo aplica a usuarios nuevos; los actuales necesitan una migración) |
+| Cambiar cómo se leen las ventas del cuaderno | `js/cuaderno.js` (`lineaAVenta`) y los sinónimos de columnas en `js/importar.js` |
 | Agregar una etapa o una sección de mensajes | `ETAPAS` / `CATEGORIAS` en `js/config.js` |
 | Un campo nuevo en el cliente | `js/cliente-form.js` (HTML + `submit`), valor inicial en `nuevoCliente()` de `js/store.js`, y mostrarlo en `js/views/ficha.js` |
 | Una regla automática nueva (p. ej. "SOAT por vencer") | `REGLAS_POR_DEFECTO` en config, `DESCRIPCION_REGLAS` y `pendientesDeReglas()` en `js/engine.js` |

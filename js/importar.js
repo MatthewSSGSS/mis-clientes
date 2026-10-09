@@ -10,6 +10,7 @@
 
 import * as store from './store.js';
 import { abrirHoja, cerrarHoja, aviso, confirmar, icon, avatar } from './ui.js';
+import { fechaConMes, aPesos, aPoliza, COLUMNAS_CUADERNO, nombreBonito, vehiculoBonito } from './cuaderno.js';
 import {
   esc, norm, hoy, sumarDias, sumarMeses, plural, uid, telefonoInternacional, telefonoBonito,
   compartirODescargar, descargarArchivo, elegirArchivo, leerArchivo, cargarScript,
@@ -54,14 +55,23 @@ export async function restaurarRespaldo() {
 }
 
 // --- Lectura de columnas -------------------------------------------------------
+// El orden importa: los más específicos primero (p. ej. "fecha pago comisión"
+// antes que "comisión" y "fecha de entrega" antes que "venta").
+// Los sinónimos de 1-2 letras solo valen si la columna se llama exactamente así.
 const SINONIMOS = {
-  nombre: ['nombre completo', 'nombres', 'nombre', 'cliente', 'full name', 'name', 'razon social'],
+  nombre: ['nombre del cliente', 'nombre completo', 'nombres', 'nombre', 'cliente', 'full name', 'name', 'razon social'],
   apellido: ['apellidos', 'apellido', 'last name', 'surname'],
-  telefono: ['celular', 'telefono', 'movil', 'whatsapp', 'tel', 'phone', 'numero', 'cel', 'contacto'],
+  telefono: ['celular', 'telefono', 'movil', 'whatsapp', 'tel', 'phone', 'cel', 'contacto'],
   email: ['correo electronico', 'correo', 'email', 'e-mail', 'mail'],
   cumple: ['cumpleanos', 'cumple', 'fecha de nacimiento', 'fecha nacimiento', 'nacimiento', 'birthday'],
+  fechaPagoComision: ['fecha pago comision', 'fecha pago comi', 'fecha de pago comision', 'pago comision', 'pago comi', 'fecha pago'],
+  comision: ['comision', '$ comi', 'comi'],
+  pedido: ['pedido', 'n pedido', 'no pedido', 'orden'],
+  cedula: ['cedula', 'nit', 'documento', 'identificacion', 'cc'],
+  poliza: ['poliza', 'p'],
   vehiculoComprado: ['vehiculo comprado', 'modelo comprado', 'compro'],
-  fechaCompra: ['fecha de compra', 'fecha compra', 'fecha de venta', 'fecha venta', 'fecha entrega'],
+  fechaCompra: ['fecha de entrega', 'fecha entrega', 'entrega', 'fecha de compra', 'fecha compra', 'fecha de venta', 'fecha venta'],
+  precio: ['valor venta', 'valor de venta', '$ venta', 'venta', 'precio', 'valor'],
   vehiculoInteres: ['vehiculo de interes', 'vehiculo', 'modelo', 'carro', 'interes', 'auto', 'referencia', 'version'],
   etapa: ['etapa', 'estado', 'status'],
   origen: ['origen', 'fuente', 'canal', 'medio'],
@@ -72,6 +82,8 @@ export const ETIQUETAS = {
   nombre: 'Nombre', apellido: 'Apellido', telefono: 'Celular', email: 'Correo', cumple: 'Cumpleaños',
   vehiculoInteres: 'Vehículo de interés', vehiculoComprado: 'Vehículo comprado', fechaCompra: 'Fecha de compra',
   etapa: 'Etapa', origen: 'Origen', proximoSeguimiento: 'Seguimiento', notas: 'Notas',
+  pedido: 'Pedido', cedula: 'Cédula', poliza: 'Póliza', precio: 'Valor venta', comision: 'Comisión',
+  fechaPagoComision: 'Pago comisión',
 };
 
 function mapearColumnas(encabezados) {
@@ -83,6 +95,7 @@ function mapearColumnas(encabezados) {
     for (const [campo, sins] of Object.entries(SINONIMOS)) {
       if (mapa[campo] !== undefined) continue;
       for (const s of sins) {
+        if (modo === 'parcial' && s.length <= 2) continue;
         const i = hs.findIndex((h, k) => !usados.has(k) && h && (modo === 'exacta' ? h === s : h.includes(s)));
         if (i >= 0) { mapa[campo] = i; usados.add(i); break; }
       }
@@ -93,7 +106,7 @@ function mapearColumnas(encabezados) {
 
 const pad = (n) => String(n).padStart(2, '0');
 /** Convierte fechas de Excel/texto a 'AAAA-MM-DD' ('' si no se entiende). */
-export function aFechaISO(v) {
+export function aFechaISO(v, anio = new Date().getFullYear()) {
   if (v == null || v === '') return '';
   if (v instanceof Date && !isNaN(v)) return `${v.getFullYear()}-${pad(v.getMonth() + 1)}-${pad(v.getDate())}`;
   if (typeof v === 'number' && v > 59 && v < 80000) { // número de serie de Excel
@@ -110,7 +123,7 @@ export function aFechaISO(v) {
   }
   m = s.match(/^(\d{4})(\d{2})(\d{2})$/);
   if (m) return `${m[1]}-${m[2]}-${m[3]}`;
-  return '';
+  return fechaConMes(s, anio); // "08 ENE", "8 de enero de 2026"
 }
 /** Cumpleaños a 'MM-DD'. Acepta fecha completa o solo día/mes. */
 export function aCumple(v) {
@@ -142,19 +155,31 @@ export function filasAClientes(filas, origen = 'Importado') {
   const val = (f, campo) => (mapa[campo] === undefined ? '' : f[mapa[campo]]);
   const txt = (f, campo) => String(val(f, campo) ?? '').trim();
 
+  // ¿Es una hoja de ventas (como el cuaderno)? Entonces todos son clientes que ya compraron.
+  const esVentas = ['pedido', 'fechaCompra', 'comision', 'precio'].filter((k) => mapa[k] !== undefined).length >= 2;
   const clientes = limpias.slice(1).map((f) => {
     const nombre = [txt(f, 'nombre'), txt(f, 'apellido')].filter(Boolean).join(' ').replace(/\s+/g, ' ');
-    const etapa = aEtapa(txt(f, 'etapa'));
+    const etapa = esVentas ? 'vendido' : aEtapa(txt(f, 'etapa'));
     const fechaCompra = aFechaISO(val(f, 'fechaCompra'));
+    let fechaPagoComision = aFechaISO(val(f, 'fechaPagoComision'));
+    if (fechaCompra && fechaPagoComision && fechaPagoComision < fechaCompra) {
+      fechaPagoComision = `${Number(fechaPagoComision.slice(0, 4)) + 1}${fechaPagoComision.slice(4)}`;
+    }
     return store.nuevoCliente({
-      nombre,
+      nombre: nombreBonito(nombre),
       telefono: txt(f, 'telefono').replace(/\.0$/, ''),
       email: txt(f, 'email'),
       cumple: aCumple(val(f, 'cumple')),
-      vehiculoInteres: txt(f, 'vehiculoInteres'),
-      vehiculoComprado: txt(f, 'vehiculoComprado'),
+      vehiculoInteres: esVentas ? '' : vehiculoBonito(txt(f, 'vehiculoInteres')),
+      vehiculoComprado: vehiculoBonito(txt(f, 'vehiculoComprado') || (esVentas ? txt(f, 'vehiculoInteres') : '')),
       fechaCompra,
       etapa: fechaCompra && etapa === 'nuevo' ? 'vendido' : etapa,
+      pedido: txt(f, 'pedido').replace(/\.0$/, ''),
+      cedula: txt(f, 'cedula').replace(/\.0$/, ''),
+      poliza: aPoliza(val(f, 'poliza')),
+      precio: aPesos(val(f, 'precio')) || '',
+      comision: aPesos(val(f, 'comision')) || '',
+      fechaPagoComision,
       origen: txt(f, 'origen'),
       proximoSeguimiento: aFechaISO(val(f, 'proximoSeguimiento')),
       notas: txt(f, 'notas'),
@@ -362,6 +387,32 @@ export async function importarContactos() {
   });
 }
 
+// --- Plantilla de Excel con las columnas del cuaderno ----------------------------
+export async function descargarPlantillaVentas() {
+  try {
+    const XLSX = await cargarXLSX();
+    const ws = XLSX.utils.aoa_to_sheet([COLUMNAS_CUADERNO]);
+    ws['!cols'] = COLUMNAS_CUADERNO.map((k) => ({ wch: Math.max(14, k.length + 4) }));
+    const ayuda = XLSX.utils.aoa_to_sheet([
+      ['Cómo llenar la plantilla'],
+      ['• Una venta por fila, igual que en el cuaderno.'],
+      ['• Póliza: ✓ (o "si") si la tomó en Nissan, X (o "no") si no.'],
+      ['• Fechas: 08/01/2026 o "08 ENE".'],
+      ['• Valores: con o sin puntos y $ (ej: $100.960.100).'],
+      ['• Cuando termines, en la app: Pasar clientes → Excel o CSV.'],
+    ]);
+    ayuda['!cols'] = [{ wch: 70 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Ventas');
+    XLSX.utils.book_append_sheet(wb, ayuda, 'Cómo llenarla');
+    const buf = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+    await compartirODescargar('plantilla-ventas.xlsx', buf, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  } catch {
+    const q = (v) => `"${String(v).replace(/"/g, '""')}"`;
+    descargarArchivo('plantilla-ventas.csv', '﻿' + COLUMNAS_CUADERNO.map(q).join(';') + '\r\n', 'text/csv;charset=utf-8');
+  }
+}
+
 // --- Exportar a Excel ---------------------------------------------------------
 export async function exportarExcel() {
   const etapas = { nuevo: 'Nuevo', cotizado: 'Cotizado', negociando: 'Negociando', vendido: 'Vendido', perdido: 'No compró' };
@@ -373,12 +424,18 @@ export async function exportarExcel() {
     Etapa: etapas[c.etapa] || c.etapa,
     'Vehículo de interés': c.vehiculoInteres,
     'Vehículo comprado': c.vehiculoComprado,
-    'Fecha de compra': c.fechaCompra,
+    Pedido: c.pedido || '',
+    'Cédula': c.cedula || '',
+    'Póliza': c.poliza === 'si' ? '✓' : c.poliza === 'no' ? 'X' : '',
+    'Valor venta': c.etapa === 'vendido' ? Number(c.precio) || '' : '',
+    'Fecha de entrega': c.fechaCompra,
+    'Comisión': Number(c.comision) || '',
+    'Fecha pago comisión': c.fechaPagoComision || '',
     Origen: c.origen,
     'Próximo seguimiento': c.proximoSeguimiento,
     'Versión': c.version || '',
     Color: c.color || '',
-    'Precio cotizado': Number(c.precio) || '',
+    'Precio cotizado': c.etapa === 'vendido' ? '' : Number(c.precio) || '',
     'Forma de pago': ({ contado: 'Contado', credito: 'Crédito', leasing: 'Leasing' })[c.formaPago] || '',
     Retoma: c.retoma || '',
     'Documentos pendientes': (c.documentos || []).filter((d) => !d.listo).map((d) => d.nombre).join(', '),

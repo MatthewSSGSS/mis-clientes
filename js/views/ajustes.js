@@ -334,7 +334,24 @@ async function pintarFilaPush(root) {
       await nube.activarPush();
       aviso('¡Listo! Te llegarán las notificaciones. Toca "Probar" para ver una.', { ms: 6000 });
     } catch (err) {
-      aviso(err.message === 'permiso' ? 'No se dio el permiso para notificaciones' : (err.message || nube.traducirError(err)), { icono: 'x', ms: 6000 });
+      const msg = String(err?.message || '');
+      if (msg === 'permiso') aviso('No se dio el permiso para notificaciones', { icono: 'x', ms: 6000 });
+      else if (msg.startsWith('servicio-push') || /conect|connect|servidor|server|network|load failed|push service/i.test(msg)) {
+        // El celular no logró hablar con el servicio de notificaciones de Apple/Google
+        abrirHoja({
+          titulo: 'No se pudo activar',
+          cuerpo: `<p>Tu celular no logró conectarse con el servicio de notificaciones de ${esIOS ? 'Apple' : 'Google'}. Casi siempre es por la conexión. Prueba esto y vuelve a tocar <b>Activar</b>:</p>
+            <ol class="install-steps mt-12">
+              <li><span>Cambia de red: si estás en WiFi, usa los <b>datos móviles</b> (o al revés).</span></li>
+              <li><span>Si tienes una <b>VPN</b> o un bloqueador de anuncios, apágalo un momento.</span></li>
+              <li><span>${esIOS ? 'Revisa que el iPhone esté actualizado (Ajustes → General → Actualización de software).' : 'Revisa que Chrome esté actualizado.'}</span></li>
+              <li><span>Cierra la app por completo y ábrela de nuevo desde el ícono.</span></li>
+            </ol>
+            <p class="small muted mt-12">Detalle técnico: ${esc(msg.replace(/^servicio-push:\s*/, ''))}</p>`,
+          pie: '<button class="btn btn-primary" data-ok>Entendido</button>',
+          montar: (el) => el.querySelector('[data-ok]').addEventListener('click', () => cerrarHoja()),
+        });
+      } else aviso(msg || nube.traducirError(err), { icono: 'x', ms: 7000 });
     }
     pintarFilaPush(root);
   });
@@ -345,7 +362,7 @@ async function pintarFilaPush(root) {
       const r = await nube.probarPush();
       aviso(r?.enviados ? 'Enviada. Debería llegarte en unos segundos.' : 'El servidor no encontró este equipo. Desactiva y vuelve a activar.', { icono: r?.enviados ? 'bell' : 'x', ms: 6000 });
     } catch (err) {
-      aviso(`No se pudo enviar la prueba (${nube.traducirError(err)})`, { icono: 'x', ms: 7000 });
+      aviso(`No se pudo enviar la prueba: ${nube.traducirError(err)} (${String(err?.message || err).slice(0, 80)})`, { icono: 'x', ms: 9000 });
     }
     setTimeout(() => { if (boton.isConnected) boton.disabled = false; }, 3000);
   });

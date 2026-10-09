@@ -1057,3 +1057,32 @@ body.hoja-abierta .toast { bottom: auto; top: calc(var(--safe-t) + 14px); }
 
 /* Texto en una sola línea con "…" si no cabe */
 .una-linea { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.recorte-2 { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-style: italic; }
+
+/* Venta (cuaderno) */
+.venta-box {
+  border: 1px solid color-mix(in srgb, var(--c-green) 30%, var(--border));
+  background: color-mix(in srgb, var(--c-green) 5%, var(--surface));
+  border-radius: var(--radius); padding: 14px 14px 2px; margin-bottom: 16px;
+}
+.venta-tit { display: flex; align-items: center; gap: 6px; font-weight: 800; font-size: 14px; color: var(--c-green); margin-bottom: 12px; }
+.venta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+.venta-item { display: grid; gap: 2px; padding: 12px 18px; border-top: 1px solid var(--border); }
+.mes-ventas { margin-top: 18px; }
+.mes-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin: 0 2px 10px; }
+.mes-head h2 { font-size: 19px; font-weight: 800; }
+.mes-tot { font-size: 13px; font-weight: 700; color: var(--muted); }
+.venta-ped { width: 64px; flex: none; display: grid; text-align: center; line-height: 1.2; padding: 6px 0; border-radius: 12px; background: color-mix(in srgb, var(--c-green) 11%, transparent); color: var(--c-green); }
+.venta-ped b { font-size: 14px; font-variant-numeric: tabular-nums; }
+.venta-ped span { font-size: 11px; font-weight: 700; }
+.venta-valor { font-size: 15px; font-variant-numeric: tabular-nums; }
+
+/* Revisión de ventas leídas del cuaderno */
+.rv-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.rv-campo { display: grid; gap: 3px; min-width: 0; }
+.rv-campo span { font-size: 11.5px; font-weight: 700; color: var(--muted); }
+.rv-campo .input { min-height: 40px; padding: 8px 10px; font-size: 16px; border-radius: 10px; }
+.rv-campo .input[type="date"] { padding-right: 4px; }
+.input.duda { border-color: var(--c-red); background: color-mix(in srgb, var(--c-red) 7%, var(--surface)); }
+.chip.chip-sm { height: 30px; padding: 0 12px; font-size: 13px; }

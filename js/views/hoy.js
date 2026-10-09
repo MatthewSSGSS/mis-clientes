@@ -91,7 +91,7 @@ export function render(root, { navegar }) {
           <div class="search-results" data-resultados hidden></div>
         </div>` : ''}
         <div class="quick-grid">
-          <button class="quick" data-nuevo><span class="icon-badge" data-color="red">${icon('plus')}</span>Nuevo cliente</button>
+          <button class="quick" data-venta><span class="icon-badge" data-color="green">${icon('star')}</span>Registrar venta</button>
           <button class="quick" data-importar><span class="icon-badge" data-color="amber">${icon('upload')}</span>Pasar clientes</button>
           <button class="quick" data-programar><span class="icon-badge" data-color="violet">${icon('send')}</span>Programar mensaje</button>
           <button class="quick" data-agendar><span class="icon-badge" data-color="blue">${icon('calendar')}</span>Agendar cita</button>
@@ -192,6 +192,7 @@ export function render(root, { navegar }) {
   // --- Eventos ---
   root.querySelectorAll('[data-serie]').forEach((b) => b.addEventListener('click', () => modoSerie(pendientesHoy())));
   root.querySelectorAll('[data-nuevo]').forEach((b) => b.addEventListener('click', () => abrirFormularioCliente()));
+  root.querySelectorAll('[data-venta]').forEach((b) => b.addEventListener('click', () => abrirFormularioCliente(null, { venta: true })));
   root.querySelectorAll('[data-importar]').forEach((b) => b.addEventListener('click', () => menuImportar()));
   root.querySelectorAll('[data-programar]').forEach((b) => b.addEventListener('click', () => abrirFormularioProgramado()));
   root.querySelectorAll('[data-agendar]').forEach((b) => b.addEventListener('click', () => abrirFormularioCita()));
@@ -211,7 +212,7 @@ export function render(root, { navegar }) {
   }));
   root.querySelectorAll('[data-escribir]').forEach((b) => b.addEventListener('click', () => {
     const c = store.cliente(b.dataset.escribir);
-    if (c) abrirMensaje(c, { plantillaId: 'tpl-seg-2' });
+    if (c) abrirMensaje(c);
   }));
   root.querySelectorAll('[data-manana]').forEach((b) => b.addEventListener('click', () => {
     const c = store.cliente(b.dataset.manana);

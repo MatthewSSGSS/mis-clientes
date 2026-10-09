@@ -152,13 +152,13 @@ function pendientesDeReglas(desde, hasta) {
   for (const c of store.clientes()) {
     if (!c.telefono) continue;
     if (r.cumpleanos.activa && c.cumple) {
-      for (const f of dias) if (coincideMesDia(c.cumple, f)) out.push(item('cumpleanos', c, f, r.cumpleanos.plantillaId, 'Cumpleaños', 'cumpleanos'));
+      for (const f of dias) if (coincideMesDia(c.cumple, f)) out.push(item('cumpleanos', c, f, 'Cumpleaños', 'cumpleanos'));
     }
     if (r.aniversario.activa && c.fechaCompra && c.etapa === 'vendido') {
       for (const f of dias) {
         if (f.slice(0, 4) > c.fechaCompra.slice(0, 4) && coincideMesDia(c.fechaCompra.slice(5), f)) {
           const anios = Number(f.slice(0, 4)) - Number(c.fechaCompra.slice(0, 4));
-          out.push(item('aniversario', c, f, r.aniversario.plantillaId, `${anios} ${anios === 1 ? 'año' : 'años'} con su vehículo`, 'postventa'));
+          out.push(item('aniversario', c, f, `${anios} ${anios === 1 ? 'año' : 'años'} con su vehículo`, 'postventa'));
         }
       }
     }
@@ -168,12 +168,12 @@ function pendientesDeReglas(desde, hasta) {
         const m = diasEntreMeses(c.fechaCompra, f);
         // Si coincide con el aniversario, no duplicar el mensaje ese día
         if (m > 0 && m % cada === 0 && !(m % 12 === 0 && r.aniversario.activa) && sumarMeses(c.fechaCompra, m) === f) {
-          out.push(item('mantenimiento', c, f, r.mantenimiento.plantillaId, 'Mantenimiento', 'postventa'));
+          out.push(item('mantenimiento', c, f, 'Mantenimiento', 'postventa'));
         }
       }
     }
     if (r.seguimiento.activa && c.proximoSeguimiento && c.proximoSeguimiento <= hasta) {
-      out.push(item('seguimiento', c, c.proximoSeguimiento, r.seguimiento.plantillaId, 'Seguimiento', 'seguimiento'));
+      out.push(item('seguimiento', c, c.proximoSeguimiento, 'Seguimiento', 'seguimiento'));
     }
   }
   // Confirmación de citas: el día antes
@@ -186,10 +186,10 @@ function pendientesDeReglas(desde, hasta) {
       const aviso = sumarDias(ct.fecha, -1);
       if (aviso >= desde && aviso <= hasta) {
         // Si no se confirmó el día antes y la cita ya es hoy, mejor un recordatorio de "hoy"
-        const esHoy = ct.fecha === h && store.plantilla('tpl-cita-hoy');
+        const esHoy = ct.fecha === h;
         out.push({
           key: `cita:${ct.id}:${ct.fecha}:${ct.hora}`, tipo: 'cita', origen: 'regla', clienteId: c.id, citaId: ct.id,
-          fecha: aviso, plantillaId: esHoy ? 'tpl-cita-hoy' : r.citas.plantillaId,
+          fecha: aviso, texto: '',
           titulo: `${esHoy ? 'Recordar' : 'Confirmar'} ${tipoCita(ct.tipo).nombre.toLowerCase()}${esHoy ? ' de hoy' : ''}`, categoria: 'recordatorio',
         });
       }
@@ -198,9 +198,10 @@ function pendientesDeReglas(desde, hasta) {
   return out;
 }
 
-function item(tipo, c, fecha, plantillaId, titulo, categoria) {
+// Los recordatorios automáticos no traen texto: el mensaje lo escribe la persona.
+function item(tipo, c, fecha, titulo, categoria) {
   const prefijo = tipo === 'seguimiento' ? 'seg' : tipo;
-  return { key: `${prefijo}:${c.id}:${fecha}`, tipo, origen: 'regla', clienteId: c.id, fecha, plantillaId, titulo, categoria };
+  return { key: `${prefijo}:${c.id}:${fecha}`, tipo, origen: 'regla', clienteId: c.id, fecha, texto: '', titulo, categoria };
 }
 
 function pendientesDeProgramados(desde, hasta) {
@@ -215,6 +216,7 @@ function pendientesDeProgramados(desde, hasta) {
       for (const c of dest) {
         out.push({
           key: `prog:${p.id}:${c.id}:${f}`, tipo: 'programado', origen: 'programado', progId: p.id,
+          // p.plantillaId solo existe en programados viejos (de cuando había plantillas)
           clienteId: c.id, fecha: f, plantillaId: p.plantillaId, texto: p.plantillaId ? undefined : p.texto,
           titulo: p.titulo || 'Mensaje programado', categoria: p.categoria || store.plantilla(p.plantillaId)?.categoria || 'ofertas',
         });
