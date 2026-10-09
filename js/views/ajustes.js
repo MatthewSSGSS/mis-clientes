@@ -10,6 +10,7 @@ import {
   cargarEjemplo, borrarEjemplo, hayEjemplos,
 } from '../importar.js';
 import { importarDocumento, escribirLista } from '../documentos.js';
+import { abrirListas } from '../cuaderno.js';
 import { abrirRecordatorio, textoRecordatorio, estadoInsignia, activarInsignia } from '../recordatorios.js';
 import { tienePin, configurarPin, quitarPin } from '../sesion.js';
 import * as nube from '../nube.js';
@@ -133,6 +134,7 @@ export function render(root) {
       <div class="settings-group">
         <h2>Importar y exportar</h2>
         <div class="grouped">
+          <button class="g-row" data-listas><span class="icon-badge" data-color="blue">${icon('sheet')}</span><div class="li-body"><b>Listas leídas del cuaderno</b><span class="small muted">${store.lecturas().length ? plural(store.lecturas().length, 'lista guardada', 'listas guardadas') : 'Aquí quedan las fotos o PDF del cuaderno que leas'}</span></div>${icon('chev-r', 'chev')}</button>
           <button class="g-row" data-imp-doc><span class="icon-badge" data-color="red">${icon('scan')}</span><div class="li-body"><b>Importar desde PDF, Word o foto</b><span class="small muted">Por ejemplo, una foto de tu cuaderno de clientes</span></div>${icon('chev-r', 'chev')}</button>
           <button class="g-row" data-imp-lista><span class="icon-badge" data-color="amber">${icon('note')}</span><div class="li-body"><b>Escribir o pegar una lista</b><span class="small muted">Un cliente por línea</span></div>${icon('chev-r', 'chev')}</button>
           <button class="g-row" data-imp-excel><span class="icon-badge" data-color="green">${icon('sheet')}</span><div class="li-body"><b>Importar desde Excel</b><span class="small muted">Archivo .xlsx o .csv con columnas Nombre y Celular</span></div>${icon('chev-r', 'chev')}</button>
@@ -209,6 +211,7 @@ export function render(root) {
     if (await confirmar({ titulo: '¿Quitar el PIN?', texto: 'Al cerrar sesión ya no se pedirá PIN para entrar.', si: 'Quitar PIN' })) quitarPin();
   });
   root.querySelector('[data-insignia]')?.addEventListener('click', () => activarInsignia());
+  root.querySelector('[data-listas]').addEventListener('click', () => abrirListas());
   root.querySelector('[data-imp-doc]').addEventListener('click', () => importarDocumento());
   root.querySelector('[data-imp-lista]').addEventListener('click', () => escribirLista());
   root.querySelector('[data-imp-excel]').addEventListener('click', () => importarExcel());

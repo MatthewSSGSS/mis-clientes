@@ -17,8 +17,8 @@
 // =============================================================================
 
 import * as store from './store.js';
-import { abrirHoja, cerrarHoja, aviso, icon } from './ui.js';
-import { esc, norm, plural, uid, telefonoInternacional, nombreMes } from './util.js';
+import { abrirHoja, cerrarHoja, aviso, icon, confirmar } from './ui.js';
+import { esc, norm, plural, uid, telefonoInternacional, nombreMes, cuando } from './util.js';
 
 const pad = (n) => String(n).padStart(2, '0');
 
@@ -238,64 +238,94 @@ const valorOK = (v) => v >= 30_000_000 && v <= 450_000_000;
 const fmt = (n) => (Number(n) ? Number(n).toLocaleString('es-CO') : '');
 
 /**
- * Pantalla para revisar y corregir las ventas leídas, en forma de tabla con
- * las columnas del cuaderno. "Editar tabla" vuelve editables las casillas.
+ * Guarda las ventas recién leídas como una "lista" y abre su tabla.
+ * Toda lectura queda guardada (aunque se cierre la tabla), porque leer con IA cuesta.
  * @param {object[]} ventas resultado de lineasAVentas() o del lector con IA
- * @param {{ocr?:boolean, ia?:boolean, origen?:string}} o
+ * @param {{ocr?:boolean, ia?:boolean, origen?:string, nombre?:string}} o
  *        ia: las leyó Claude (cada venta puede traer `dudas`: campos que no se entendieron bien)
  */
-export function revisarVentas(ventas, { ocr = false, ia = false, origen = 'Importado del cuaderno' } = {}) {
+export function revisarVentas(ventas, { ocr = false, ia = false, origen = 'Importado del cuaderno', nombre = '' } = {}) {
   const cp = store.ajustes().codigoPais;
   const telefonos = new Set(store.clientes().map((c) => telefonoInternacional(c.telefono, cp)).filter(Boolean));
   const pedidos = new Set(store.clientes().map((c) => String(c.pedido || '')).filter(Boolean));
-  const vecesPedido = {};
-  for (const v of ventas) if (v.pedido) vecesPedido[v.pedido] = (vecesPedido[v.pedido] || 0) + 1;
-
-  // Estado de cada fila (se corrige aquí mismo mientras se edita)
-  const filas = ventas.map((v) => {
-    const repetido = (v.telefono && telefonos.has(telefonoInternacional(v.telefono, cp))) || (v.pedido && pedidos.has(v.pedido));
-    return {
-      nombre: v.nombre || '', pedido: v.pedido || '', vehiculo: v.vehiculo || '', poliza: v.poliza || '',
-      cedula: v.cedula || '', telefono: v.telefono || '', precio: Number(v.precio) || 0, fechaCompra: v.fechaCompra || '',
-      comision: Number(v.comision) || 0, fechaPagoComision: v.fechaPagoComision || '', linea: v.linea || '',
-      dudasIA: new Set(v.dudas || []), editados: new Set(), repetido, elegido: !repetido,
-    };
+  const lista = store.guardarLectura({
+    nombre: nombre || (/^Importado de /.test(origen) && origen !== 'Importado de una lista' ? origen.slice(13) : 'Lista escrita o pegada'),
+    origen,
+    fuente: ia ? 'ia' : ocr ? 'ocr' : 'texto',
+    filas: ventas.map((v) => {
+      const repetido = (v.telefono && telefonos.has(telefonoInternacional(v.telefono, cp))) || (v.pedido && pedidos.has(v.pedido));
+      return {
+        nombre: v.nombre || '', pedido: v.pedido || '', vehiculo: v.vehiculo || '', poliza: v.poliza || '',
+        cedula: v.cedula || '', telefono: v.telefono || '', precio: Number(v.precio) || 0, fechaCompra: v.fechaCompra || '',
+        comision: Number(v.comision) || 0, fechaPagoComision: v.fechaPagoComision || '', linea: v.linea || '',
+        dudasIA: v.dudas || [], editados: [], elegido: !repetido, pasada: false, repetido: !!repetido,
+      };
+    }),
   });
+  abrirLista(lista.id);
+}
+
+// Fecha corta "08 ENE"
+const mesDe = (iso) => (iso ? (nombreMes(Number(iso.slice(5, 7))) || '').slice(0, 3).toUpperCase() : '—');
+const fechaCuaderno = (iso) => (iso ? `${iso.slice(8, 10)} ${mesDe(iso)}` : '');
+
+// Columnas, en el orden del cuaderno
+const COLS = [
+  { f: 'pedido', t: 'Pedido', ver: (x) => esc(x.pedido), editar: 'inputmode="numeric"', ancho: 'c-ped' },
+  { f: 'vehiculo', t: 'Vehículo', ver: (x) => esc(x.vehiculo), editar: 'list="dl-rv-modelos"', ancho: 'c-veh' },
+  { f: 'nombre', t: 'Nombre del cliente', ver: (x) => esc(x.nombre), editar: 'autocapitalize="words"', ancho: 'c-nom' },
+  { f: 'poliza', t: 'P', ver: (x) => (x.poliza === 'si' ? '✓' : x.poliza === 'no' ? 'X' : ''), ancho: 'c-pol' },
+  { f: 'cedula', t: 'Cédula', ver: (x) => esc(x.cedula), editar: 'inputmode="numeric"', ancho: 'c-ced' },
+  { f: 'telefono', t: 'Celular', ver: (x) => esc(x.telefono), editar: 'type="tel" inputmode="tel"', ancho: 'c-cel' },
+  { f: 'precio', t: '$ Venta', ver: (x) => (x.precio ? `$${fmt(x.precio)}` : ''), editar: 'inputmode="numeric" data-dinero', ancho: 'c-pes' },
+  { f: 'fechaCompra', t: 'Entrega', ver: (x) => fechaCuaderno(x.fechaCompra), editar: 'type="date"', ancho: 'c-fec' },
+  { f: 'comision', t: '$ Comi', ver: (x) => (x.comision ? `$${fmt(x.comision)}` : ''), editar: 'inputmode="numeric" data-dinero', ancho: 'c-pes' },
+  { f: 'fechaPagoComision', t: 'Pago comi', ver: (x) => fechaCuaderno(x.fechaPagoComision), editar: 'type="date"', ancho: 'c-fec' },
+];
+
+/** ¿Esta casilla está dudosa? (reglas + lo que marcó la IA, hasta que se corrija) */
+function dudosa(filas, x, campo) {
+  if (x.pasada) return false;
+  const pedidoRepetido = !!x.pedido && filas.filter((y) => y.pedido === x.pedido).length > 1;
+  const regla = {
+    telefono: !celularOK(x.telefono),
+    precio: !valorOK(x.precio),
+    fechaCompra: !x.fechaCompra,
+    nombre: x.nombre.trim().split(/\s+/).length < 2,
+    pedido: (!!x.pedido && !/^\d{5}$/.test(x.pedido)) || pedidoRepetido,
+  }[campo] || false;
+  return regla || ((x.dudasIA || []).includes(campo) && !(x.editados || []).includes(campo));
+}
+
+/** Resumen de una lista: cuántas ventas, cuántas pasadas y cuántas casillas por revisar */
+export function resumenLista(l) {
+  const pendientes = l.filas.filter((x) => !x.pasada);
+  const malas = pendientes.reduce((t, x) => t + (x.elegido ? COLS.filter((c) => dudosa(l.filas, x, c.f)).length : 0), 0);
+  return { total: l.filas.length, pasadas: l.filas.length - pendientes.length, pendientes: pendientes.length, malas };
+}
+
+/** Abre la tabla de una lista guardada para revisarla, editarla y pasarla a clientes. */
+export function abrirLista(id) {
+  const l = store.lectura(id);
+  if (!l) { aviso('Esa lista ya no existe', { icono: 'x' }); return; }
+  const filas = structuredClone(l.filas);
   let modo = 'ver'; // 'ver' | 'editar'
+  let timer = null;
 
-  // ¿Esta casilla está dudosa? (reglas + lo que marcó la IA, hasta que se corrija)
-  const pedidoRepetido = (f) => !!f.pedido && filas.filter((x) => x.pedido === f.pedido).length > 1;
-  const dudosa = (f, campo) => {
-    const regla = {
-      telefono: !celularOK(f.telefono),
-      precio: !valorOK(f.precio),
-      fechaCompra: !f.fechaCompra,
-      nombre: f.nombre.trim().split(/\s+/).length < 2,
-      pedido: (!!f.pedido && !/^\d{5}$/.test(f.pedido)) || pedidoRepetido(f),
-    }[campo] || false;
-    return regla || (f.dudasIA.has(campo) && !f.editados.has(campo));
+  // Guardar los cambios en la lista (poco después de cada edición)
+  const guardar = () => {
+    clearTimeout(timer);
+    const actual = store.lectura(id);
+    if (actual) store.guardarLectura({ ...actual, filas: structuredClone(filas) });
   };
+  const guardarLuego = () => { clearTimeout(timer); timer = setTimeout(guardar, 700); };
 
-  // Columnas, en el orden del cuaderno
-  const mesDe = (iso) => (iso ? (nombreMes(Number(iso.slice(5, 7))) || '').slice(0, 3).toUpperCase() : '—');
-  const fechaCorta_ = (iso) => (iso ? `${iso.slice(8, 10)} ${mesDe(iso)}` : '');
-  const COLS = [
-    { f: 'pedido', t: 'Pedido', ver: (x) => esc(x.pedido), editar: 'inputmode="numeric"', ancho: 'c-ped' },
-    { f: 'vehiculo', t: 'Vehículo', ver: (x) => esc(x.vehiculo), editar: 'list="dl-rv-modelos"', ancho: 'c-veh' },
-    { f: 'nombre', t: 'Nombre del cliente', ver: (x) => esc(x.nombre), editar: 'autocapitalize="words"', ancho: 'c-nom' },
-    { f: 'poliza', t: 'P', ver: (x) => (x.poliza === 'si' ? '✓' : x.poliza === 'no' ? 'X' : ''), ancho: 'c-pol' },
-    { f: 'cedula', t: 'Cédula', ver: (x) => esc(x.cedula), editar: 'inputmode="numeric"', ancho: 'c-ced' },
-    { f: 'telefono', t: 'Celular', ver: (x) => esc(x.telefono), editar: 'type="tel" inputmode="tel"', ancho: 'c-cel' },
-    { f: 'precio', t: '$ Venta', ver: (x) => (x.precio ? `$${fmt(x.precio)}` : ''), editar: 'inputmode="numeric" data-dinero', ancho: 'c-pes' },
-    { f: 'fechaCompra', t: 'Entrega', ver: (x) => fechaCorta_(x.fechaCompra), editar: 'type="date"', ancho: 'c-fec' },
-    { f: 'comision', t: '$ Comi', ver: (x) => (x.comision ? `$${fmt(x.comision)}` : ''), editar: 'inputmode="numeric" data-dinero', ancho: 'c-pes' },
-    { f: 'fechaPagoComision', t: 'Pago comi', ver: (x) => fechaCorta_(x.fechaPagoComision), editar: 'type="date"', ancho: 'c-fec' },
-  ];
   const valorInput = (x, f) => (f === 'precio' || f === 'comision' ? fmt(x[f]) : x[f]);
-
   const celda = (x, i, c) => {
-    const mala = dudosa(x, c.f) ? 'duda' : '';
-    if (modo === 'ver') return `<td class="${c.ancho} ${mala}" data-celda="${i}:${c.f}">${c.ver(x) || '<span class="vacia">—</span>'}</td>`;
+    const mala = dudosa(filas, x, c.f) ? 'duda' : '';
+    if (modo === 'ver' || x.pasada) {
+      return `<td class="${c.ancho} ${mala}" ${x.pasada ? '' : `data-celda="${i}:${c.f}"`}>${c.ver(x) || '<span class="vacia">—</span>'}</td>`;
+    }
     if (c.f === 'poliza') {
       return `<td class="${c.ancho}"><select class="tc-input" data-i="${i}" data-f="poliza" aria-label="Póliza">
         <option value="" ${!x.poliza ? 'selected' : ''}>—</option><option value="si" ${x.poliza === 'si' ? 'selected' : ''}>✓</option><option value="no" ${x.poliza === 'no' ? 'selected' : ''}>X</option></select></td>`;
@@ -303,56 +333,61 @@ export function revisarVentas(ventas, { ocr = false, ia = false, origen = 'Impor
     return `<td class="${c.ancho}"><input class="tc-input ${mala}" data-i="${i}" data-f="${c.f}" value="${esc(valorInput(x, c.f))}" ${c.editar || ''} aria-label="${esc(c.t)}"></td>`;
   };
 
+  const pintarResumen = (el) => {
+    const r = resumenLista({ filas });
+    const porPasar = filas.filter((x) => x.elegido && !x.pasada).length;
+    el.querySelector('[data-resumen]').innerHTML = `${plural(r.total, 'venta', 'ventas')}`
+      + `${r.pasadas ? ` · <span style="color:var(--c-green);font-weight:700">${r.pasadas} en clientes</span>` : ''}`
+      + `${r.pendientes ? ` · <b>${porPasar}</b> por pasar` : ''}`
+      + `${r.malas ? ` · <span style="color:var(--c-red);font-weight:700">${plural(r.malas, 'casilla por revisar', 'casillas por revisar')}</span>` : r.pendientes ? ' · todo se ve bien ✓' : ''}`;
+    const ok = el.querySelector('[data-ok]');
+    ok.innerHTML = `${icon('check')} Pasar ${porPasar}<span class="solo-ancho">&nbsp;a clientes</span>`;
+    ok.disabled = !porPasar;
+  };
+
   const pintarTabla = (el, foco) => {
-    const n = filas.filter((x) => x.elegido).length;
-    const malas = filas.reduce((t, x) => t + (x.elegido ? COLS.filter((c) => dudosa(x, c.f)).length : 0), 0);
-    el.querySelector('[data-resumen]').innerHTML = `${plural(filas.length, 'venta', 'ventas')} · <b>${n}</b> para guardar${malas ? ` · <span style="color:var(--c-red);font-weight:700">${plural(malas, 'casilla por revisar', 'casillas por revisar')}</span>` : ' · todo se ve bien ✓'}`;
-    el.querySelector('[data-modo]').innerHTML = modo === 'ver' ? `${icon('edit', 'i-sm')} Editar tabla` : `${icon('check', 'i-sm')} Ver tabla`;
-    el.querySelector('[data-tabla]').className = `tabla-cuaderno ${modo === 'editar' ? 'editando' : ''}`;
-    el.querySelector('[data-tabla]').innerHTML = `
-      <thead><tr><th class="c-chk" title="Guardar">✓</th><th class="c-mes">Mes</th>${COLS.map((c) => `<th class="${c.ancho}">${c.t}</th>`).join('')}</tr></thead>
+    const hayPendientes = filas.some((x) => !x.pasada);
+    const btnModo = el.querySelector('[data-modo]');
+    btnModo.hidden = !hayPendientes;
+    btnModo.innerHTML = modo === 'ver' ? `${icon('edit', 'i-sm')} Editar tabla` : `${icon('check', 'i-sm')} Ver tabla`;
+    const tabla = el.querySelector('[data-tabla]');
+    tabla.className = `tabla-cuaderno ${modo === 'editar' ? 'editando' : ''}`;
+    tabla.innerHTML = `
+      <thead><tr><th class="c-chk" title="Pasar a clientes">✓</th><th class="c-mes">Mes</th>${COLS.map((c) => `<th class="${c.ancho}">${c.t}</th>`).join('')}</tr></thead>
       <tbody>
         ${filas.map((x, i) => `
-          <tr class="${x.elegido ? '' : 'off'}" ${x.linea ? `title="Leí: ${esc(x.linea)}"` : ''}>
-            <td class="c-chk"><input type="checkbox" data-elegir="${i}" ${x.elegido ? 'checked' : ''} aria-label="Guardar esta venta"></td>
-            <td class="c-mes">${mesDe(x.fechaCompra)}${x.repetido ? '<span class="ya-esta" title="Ya está en la app">●</span>' : ''}</td>
+          <tr class="${x.pasada ? 'pasada' : x.elegido ? '' : 'off'}" ${x.linea ? `title="Leí: ${esc(x.linea)}"` : ''}>
+            <td class="c-chk">${x.pasada
+              ? `<span class="en-clientes" title="Ya está en clientes">${icon('check', 'i-sm')}</span>`
+              : `<input type="checkbox" data-elegir="${i}" ${x.elegido ? 'checked' : ''} aria-label="Pasar esta venta a clientes">`}</td>
+            <td class="c-mes">${mesDe(x.fechaCompra)}${x.repetido && !x.pasada ? '<span class="ya-esta" title="Puede que ya esté en la app">●</span>' : ''}</td>
             ${COLS.map((c) => celda(x, i, c)).join('')}
           </tr>`).join('')}
       </tbody>`;
-    const ok = el.querySelector('[data-ok]');
-    ok.innerHTML = `${icon('check')} Guardar ${n}`;
-    ok.disabled = !n;
+    pintarResumen(el);
     if (foco) {
       const inp = el.querySelector(`[data-i="${foco.i}"][data-f="${foco.f}"]`);
       if (inp) { inp.focus({ preventScroll: false }); inp.scrollIntoView({ block: 'nearest', inline: 'center' }); }
     }
   };
 
-  // Marca roja de una sola casilla al editar (sin redibujar la tabla y perder el foco)
-  const actualizarCelda = (el, i, f) => {
-    el.querySelector(`[data-i="${i}"][data-f="${f}"]`)?.classList.toggle('duda', dudosa(filas[i], f));
-    if (f === 'pedido') {
-      filas.forEach((x, k) => el.querySelector(`[data-i="${k}"][data-f="pedido"]`)?.classList.toggle('duda', dudosa(x, 'pedido')));
-    }
-  };
-
+  const fuente = { ia: 'Leída con inteligencia artificial', ocr: 'Leída con el lector gratis', texto: 'Escrita o pegada' }[l.fuente] || '';
   abrirHoja({
-    titulo: 'Revisa las ventas',
+    titulo: l.nombre || 'Lista del cuaderno',
     alta: true,
     ancha: true,
     cuerpo: `
-      ${ocr ? `<div class="banner warn">${icon('scan', 'i-lg')}<div><strong>Revisa los números</strong>
-        Leí la letra de la foto. Los nombres suelen salir bien, pero <b>los números pueden tener errores</b>.</div></div>` : ''}
-      ${ia ? `<div class="banner info">${icon('sparkles', 'i-lg')}<div><strong>Leído con inteligencia artificial</strong>
-        Compara la tabla con tu cuaderno. Lo que está en <span style="color:var(--c-red);font-weight:700">rojo</span> no se entendía bien: tócalo para corregirlo.</div></div>` : ''}
+      ${l.fuente === 'ia' || l.fuente === 'ocr' ? `<div class="banner ${l.fuente === 'ia' ? 'info' : 'warn'}">${icon(l.fuente === 'ia' ? 'sparkles' : 'scan', 'i-lg')}<div><strong>${fuente}</strong>
+        Compara la tabla con tu cuaderno. Lo que está en <span style="color:var(--c-red);font-weight:700">rojo</span> no se entendía bien: tócalo para corregirlo. La lista se guarda sola; puedes seguir después en <b>Listas leídas</b>.</div></div>` : ''}
       <div class="hstack mt-12" style="flex-wrap:wrap">
         <span class="small muted spacer" data-resumen></span>
         <button class="btn btn-primary btn-sm" type="button" data-modo></button>
       </div>
       <div class="tabla-scroll mt-12"><table data-tabla></table></div>
-      <p class="small muted mt-8">Desliza la tabla hacia los lados para ver todas las columnas. Desmarca ✓ las ventas que no quieras guardar.</p>
+      <p class="small muted mt-8">Desliza la tabla hacia los lados para ver todas las columnas. Desmarca ✓ las ventas que no quieras pasar a clientes.</p>
       <datalist id="dl-rv-modelos">${(store.ajustes().modelos || []).map((m) => `<option value="${esc(m)}">`).join('')}</datalist>`,
-    pie: `<button class="btn btn-outline" data-cancel>Cancelar</button><button class="btn btn-primary" data-ok>Guardar</button>`,
+    pie: `<button class="btn btn-outline" data-luego>${icon('download', 'i-sm')} Guardar<span class="solo-ancho">&nbsp;para después</span></button><button class="btn btn-primary" data-ok>Pasar a clientes</button>`,
+    cerrar: () => guardar(),
     montar: (el) => {
       pintarTabla(el);
       const tabla = el.querySelector('[data-tabla]');
@@ -371,8 +406,8 @@ export function revisarVentas(ventas, { ocr = false, ia = false, origen = 'Impor
       });
       tabla.addEventListener('change', (e) => {
         const t = e.target;
-        if (t.matches('[data-elegir]')) { filas[Number(t.dataset.elegir)].elegido = t.checked; pintarTabla(el); return; }
-        if (t.matches('select[data-f="poliza"]')) { filas[Number(t.dataset.i)].poliza = t.value; }
+        if (t.matches('[data-elegir]')) { filas[Number(t.dataset.elegir)].elegido = t.checked; pintarTabla(el); guardarLuego(); return; }
+        if (t.matches('select[data-f="poliza"]')) { filas[Number(t.dataset.i)].poliza = t.value; guardarLuego(); }
       });
       tabla.addEventListener('input', (e) => {
         const t = e.target;
@@ -384,38 +419,86 @@ export function revisarVentas(ventas, { ocr = false, ia = false, origen = 'Impor
           t.value = n ? n.toLocaleString('es-CO') : '';
           x[f] = n;
         } else x[f] = t.value.trim();
-        x.editados.add(f);
-        actualizarCelda(el, i, f);
+        if (!x.editados.includes(f)) x.editados.push(f);
+        t.classList.toggle('duda', dudosa(filas, x, f));
+        if (f === 'pedido') filas.forEach((y, k) => el.querySelector(`[data-i="${k}"][data-f="pedido"]`)?.classList.toggle('duda', dudosa(filas, y, 'pedido')));
+        guardarLuego();
       });
-      // Al salir de una casilla, actualizar el resumen (sin perder lo escrito)
-      tabla.addEventListener('focusout', () => {
-        const n = filas.filter((x) => x.elegido).length;
-        const malas = filas.reduce((t, x) => t + (x.elegido ? COLS.filter((c) => dudosa(x, c.f)).length : 0), 0);
-        el.querySelector('[data-resumen]').innerHTML = `${plural(filas.length, 'venta', 'ventas')} · <b>${n}</b> para guardar${malas ? ` · <span style="color:var(--c-red);font-weight:700">${plural(malas, 'casilla por revisar', 'casillas por revisar')}</span>` : ' · todo se ve bien ✓'}`;
-      });
+      tabla.addEventListener('focusout', () => pintarResumen(el));
 
-      el.querySelector('[data-cancel]').addEventListener('click', () => cerrarHoja());
+      el.querySelector('[data-luego]').addEventListener('click', () => {
+        guardar();
+        cerrarHoja();
+        aviso('Lista guardada. Puedes seguir después en "Listas leídas".', { icono: 'download', ms: 6000, accion: { texto: 'Ver listas', fn: () => abrirListas() } });
+      });
       el.querySelector('[data-ok]').addEventListener('click', () => {
-        const elegidas = filas.filter((x) => x.elegido);
-        const sinNombre = elegidas.filter((x) => !x.nombre.trim()).length;
+        const porPasar = filas.filter((x) => x.elegido && !x.pasada);
+        const sinNombre = porPasar.filter((x) => !x.nombre.trim()).length;
         if (sinNombre) {
           aviso(`${plural(sinNombre, 'venta marcada no tiene', 'ventas marcadas no tienen')} nombre. Escríbelo o desmárcala.`, { icono: 'x', ms: 6000 });
           if (modo !== 'editar') { modo = 'editar'; pintarTabla(el); }
           return;
         }
-        const nuevos = elegidas.map((x) => store.nuevoCliente({
-          nombre: x.nombre.trim(), telefono: x.telefono, cedula: x.cedula, pedido: x.pedido,
-          etapa: 'vendido', vehiculoComprado: x.vehiculo, fechaCompra: x.fechaCompra,
-          precio: x.precio || '', comision: x.comision || '', fechaPagoComision: x.fechaPagoComision,
-          poliza: x.poliza,
-          historial: [{ id: uid('h_'), fecha: new Date().toISOString(), tipo: 'creado', texto: origen }],
-        }));
+        const nuevos = porPasar.map((x) => {
+          const c = store.nuevoCliente({
+            nombre: x.nombre.trim(), telefono: x.telefono, cedula: x.cedula, pedido: x.pedido,
+            etapa: 'vendido', vehiculoComprado: x.vehiculo, fechaCompra: x.fechaCompra,
+            precio: x.precio || '', comision: x.comision || '', fechaPagoComision: x.fechaPagoComision,
+            poliza: x.poliza,
+            historial: [{ id: uid('h_'), fecha: new Date().toISOString(), tipo: 'creado', texto: l.origen || 'Importado del cuaderno' }],
+          });
+          x.pasada = true;
+          x.clienteId = c.id;
+          return c;
+        });
         store.agregarClientes(nuevos);
+        guardar();
         cerrarHoja();
         const sinCel = nuevos.filter((c) => !celularOK(c.telefono)).length;
-        aviso(`${plural(nuevos.length, 'venta guardada', 'ventas guardadas')}${sinCel ? ` · ${sinCel} sin celular válido (corrígelo en su ficha)` : ''}`, { ms: 6000 });
+        aviso(`${plural(nuevos.length, 'venta pasada', 'ventas pasadas')} a clientes${sinCel ? ` · ${sinCel} sin celular válido (corrígelo en su ficha)` : ''}`, { ms: 6000 });
       });
     },
+  });
+}
+
+/** Pantalla con todas las listas leídas guardadas. */
+export function abrirListas() {
+  const pintar = (el) => {
+    const ls = [...store.lecturas()].sort((a, b) => (b.creado || '').localeCompare(a.creado || ''));
+    el.querySelector('[data-listas]').innerHTML = ls.length ? ls.map((l) => {
+      const r = resumenLista(l);
+      const estado = !r.pendientes ? '<span class="pill" data-color="green">Todo en clientes</span>'
+        : r.pasadas ? `<span class="pill" data-color="amber">${r.pendientes} sin pasar</span>`
+          : '<span class="pill" data-color="blue">Sin pasar</span>';
+      return `
+        <div class="g-row g-wrap">
+          <span class="icon-badge" data-color="${l.fuente === 'ia' ? 'violet' : 'gray'}">${icon(l.fuente === 'ia' ? 'sparkles' : 'sheet')}</span>
+          <button class="li-body lista-abrir" type="button" data-abrir="${l.id}">
+            <b class="una-linea">${esc(l.nombre || 'Lista del cuaderno')}</b>
+            <span class="small muted">${esc(cuando(l.creado))} · ${plural(r.total, 'venta', 'ventas')}${r.malas ? ` · <span style="color:var(--c-red)">${plural(r.malas, 'casilla por revisar', 'casillas por revisar')}</span>` : ''}</span>
+          </button>
+          <div class="row-actions">${estado}<button class="btn btn-ghost btn-icon btn-sm" type="button" data-borrar="${l.id}" aria-label="Eliminar lista">${icon('trash', 'i-sm')}</button></div>
+        </div>`;
+    }).join('') : `<div class="g-row"><div class="li-body"><b>Todavía no hay listas</b><span class="small muted">Cuando leas una foto o PDF del cuaderno, la lista queda guardada aquí.</span></div></div>`;
+    el.querySelectorAll('[data-abrir]').forEach((b) => b.addEventListener('click', () => abrirLista(b.dataset.abrir)));
+    el.querySelectorAll('[data-borrar]').forEach((b) => b.addEventListener('click', async () => {
+      const l = store.lectura(b.dataset.borrar);
+      const ok = await confirmar({
+        titulo: '¿Eliminar esta lista?',
+        texto: 'Se borra solo la lista. Las ventas que ya pasaste a clientes se quedan.',
+        si: 'Eliminar lista', peligro: true,
+      });
+      if (ok && l) { store.eliminarLectura(l.id); aviso('Lista eliminada', { icono: 'trash' }); abrirListas(); }
+      else abrirListas();
+    }));
+  };
+  abrirHoja({
+    titulo: 'Listas leídas',
+    alta: true,
+    cuerpo: `
+      <p class="small muted">Cada vez que lees el cuaderno, la lista se guarda aquí para que la revises, la corrijas y la pases a clientes cuando quieras.</p>
+      <div class="grouped mt-12" data-listas></div>`,
+    montar: (el) => pintar(el),
   });
 }
 

@@ -2,7 +2,7 @@
 // sincro.js — Une dos copias de los datos (la de este equipo y la de la nube).
 //
 // Reglas:
-//   • Clientes, citas, plantillas y programados: por id, gana la versión con
+//   • Clientes, citas, plantillas, programados y listas leídas: por id, gana la versión con
 //     `actualizado` más reciente. El historial de un cliente se une (no se
 //     pierden notas ni mensajes hechos en otro equipo).
 //   • Lo borrado (registro `borrados`) no vuelve, salvo que se haya editado
@@ -86,6 +86,7 @@ export function fusionar(local, remoto) {
     citas: unirPorId(L.citas, R.citas, borrados),
     plantillas: unirPorId(L.plantillas, R.plantillas, borrados),
     programados: unirPorId(L.programados, R.programados, borrados),
+    lecturas: unirPorId(L.lecturas, R.lecturas, borrados),
     reglas: reglasL ? L.reglas : R.reglas,
     reglasActualizado: reglasL ? L.reglasActualizado : R.reglasActualizado,
     envios,

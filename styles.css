@@ -1131,3 +1131,7 @@ body.hoja-abierta .toast { bottom: auto; top: calc(var(--safe-t) + 14px); }
 .tabla-cuaderno.editando .c-cel { min-width: 130px; }
 .tabla-cuaderno.editando .c-pes { min-width: 135px; }
 .tabla-cuaderno.editando .c-fec { min-width: 150px; }
+.tabla-cuaderno tr.pasada td { color: var(--muted); background: color-mix(in srgb, var(--c-green) 5%, var(--surface)); }
+.tabla-cuaderno .en-clientes { color: var(--c-green); display: inline-grid; }
+.lista-abrir { border: 0; background: none; padding: 0; text-align: left; font: inherit; color: inherit; cursor: pointer; display: grid; gap: 2px; min-width: 0; }
+.lista-abrir:hover b { color: var(--accent); }

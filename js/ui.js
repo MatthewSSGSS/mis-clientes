@@ -40,6 +40,7 @@ const $backdrop = () => document.getElementById('sheetBackdrop');
 let alCerrar = null;
 let historialEmpujado = false;
 let ignorarPop = false;
+let timerAtras = null; // "atrás" pendiente al cerrar una hoja
 let focoAnterior = null;
 
 /**
@@ -79,7 +80,10 @@ export function abrirHoja({ titulo, cuerpo, pie = '', alta = false, ancha = fals
   montar?.(el);
 
   // El botón "atrás" del celular cierra la hoja en vez de salir de la vista
-  if (!historialEmpujado) { history.pushState({ hoja: true }, ''); historialEmpujado = true; }
+  if (timerAtras) {
+    // Se cerró una hoja y se abre otra de inmediato: reusar su entrada del historial
+    clearTimeout(timerAtras); timerAtras = null; historialEmpujado = true;
+  } else if (!historialEmpujado) { history.pushState({ hoja: true }, ''); historialEmpujado = true; }
 
   const primero = el.querySelector('[autofocus]');
   (primero || el.querySelector('.sheet-head button')).focus({ preventScroll: true });
@@ -97,7 +101,17 @@ export function cerrarHoja({ desdeHistorial = false } = {}) {
   if (alCerrar) { const f = alCerrar; alCerrar = null; f(); }
   if (historialEmpujado) {
     historialEmpujado = false;
-    if (!desdeHistorial) { ignorarPop = true; history.back(); }
+    // "Atrás" un instante después: si en ese momento se abre otra hoja (menú → ventana
+    // siguiente), esa hoja usa la misma entrada y no se descuadra la navegación.
+    if (!desdeHistorial) {
+      clearTimeout(timerAtras);
+      const hashAlCerrar = location.hash;
+      timerAtras = setTimeout(() => {
+        timerAtras = null;
+        if (location.hash !== hashAlCerrar) return; // ya se navegó a otra pantalla
+        ignorarPop = true; history.back();
+      }, 0);
+    }
   }
   focoAnterior?.focus?.({ preventScroll: true });
 }

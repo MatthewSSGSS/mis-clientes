@@ -23,7 +23,7 @@ import {
 import {
   importarExcel, importarContactos, filasAClientes, vistaPreviaImportacion, ETIQUETAS, aCumple, descargarPlantillaVentas,
 } from './importar.js';
-import { pareceCuaderno, lineasAVentas, revisarVentas } from './cuaderno.js';
+import { pareceCuaderno, lineasAVentas, revisarVentas, abrirListas } from './cuaderno.js';
 import * as nube from './nube.js';
 
 const LIBS = {
@@ -36,7 +36,9 @@ const MAX_PAGINAS_OCR = 15;
 
 // --- Menú "Importar clientes" --------------------------------------------------
 export function menuImportar() {
+  const nListas = store.lecturas().length;
   const opciones = [
+    ...(nListas ? [{ id: 'listas', icono: 'sheet', color: 'blue', titulo: `Listas leídas (${nListas})`, sub: 'Las listas del cuaderno que ya leíste, para revisarlas o pasarlas a clientes' }] : []),
     { id: 'pegar', icono: 'note', color: 'green', titulo: 'Pegar el texto de la foto del cuaderno', sub: 'La forma más confiable: copias el texto de la foto con el iPhone y lo pegas aquí' },
     { id: 'doc', icono: 'scan', color: 'red', titulo: 'Foto o PDF del cuaderno', sub: 'La app intenta leer la letra; revisa los números' },
     { id: 'excel', icono: 'sheet', color: 'violet', titulo: 'Excel o CSV', sub: 'Con las columnas del cuaderno, o al menos Nombre y Celular' },
@@ -62,6 +64,7 @@ export function menuImportar() {
       else if (op === 'excel') importarExcel();
       else if (op === 'vcf') importarContactos();
       else if (op === 'plantilla') descargarPlantillaVentas();
+      else if (op === 'listas') setTimeout(abrirListas, 60);
       else setTimeout(escribirLista, 60);
     })),
   });

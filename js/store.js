@@ -23,7 +23,7 @@ export const CLAVE_LOCAL = 'misclientes:datos';
 export const claveCuenta = (idUsuario) => `misclientes:cuenta:${idUsuario}`;
 let CLAVE = CLAVE_LOCAL;
 
-export const SCHEMA = 4;
+export const SCHEMA = 5;
 const MAX_ENVIOS = 5000; // historial global de envíos que se conserva
 const DIAS_BORRADOS = 90; // cuánto se recuerda que algo se borró (para sincronizar)
 
@@ -54,6 +54,11 @@ const MIGRACIONES = {
   // 2.1.0: datos de la venta (cuaderno de ventas)
   4: (d) => {
     (Array.isArray(d.clientes) ? d.clientes : []).forEach(completarCliente);
+    return d;
+  },
+  // 2.4.0: listas leídas del cuaderno (se guardan para revisarlas después)
+  5: (d) => {
+    d.lecturas = Array.isArray(d.lecturas) ? d.lecturas : [];
     return d;
   },
 };
@@ -109,6 +114,7 @@ export function datosVacios() {
     reglasActualizado: '',
     envios: [],
     citas: [],
+    lecturas: [],
     borrados: {},
   };
 }
@@ -130,6 +136,7 @@ export function migrar(d) {
   d.programados = Array.isArray(d.programados) ? d.programados : [];
   d.envios = Array.isArray(d.envios) ? d.envios : [];
   d.citas = Array.isArray(d.citas) ? d.citas : [];
+  d.lecturas = Array.isArray(d.lecturas) ? d.lecturas : [];
   d.borrados = d.borrados && typeof d.borrados === 'object' ? d.borrados : {};
   d.clientes.forEach((c) => { c.historial = Array.isArray(c.historial) ? c.historial : []; completarCliente(c); });
   d.schema = SCHEMA;
@@ -348,6 +355,29 @@ export function eliminarCita(id) {
   cambio();
 }
 
+// --- Listas leídas del cuaderno ----------------------------------------------
+// { id, nombre, fuente: 'ia'|'ocr'|'texto', creado, actualizado,
+//   filas: [{ pedido, vehiculo, nombre, poliza, cedula, telefono, precio,
+//             fechaCompra, comision, fechaPagoComision, linea,
+//             dudasIA: [], editados: [], elegido, pasada, clienteId }] }
+export const lecturas = () => datos.lecturas;
+export const lectura = (id) => datos.lecturas.find((x) => x.id === id);
+
+export function guardarLectura(l) {
+  if (!l.id) { l.id = uid('lect_'); l.creado = ahora(); }
+  l.actualizado = ahora();
+  const i = datos.lecturas.findIndex((x) => x.id === l.id);
+  if (i >= 0) datos.lecturas[i] = l; else datos.lecturas.unshift(l);
+  cambio();
+  return l;
+}
+
+export function eliminarLectura(id) {
+  datos.lecturas = datos.lecturas.filter((x) => x.id !== id);
+  marcarBorrado(id);
+  cambio();
+}
+
 // --- Plantillas --------------------------------------------------------------
 export const plantillas = () => datos.plantillas;
 export const plantilla = (id) => datos.plantillas.find((p) => p.id === id);
@@ -462,7 +492,7 @@ export function borrarTodo() {
   const borrados = { ...datos.borrados };
   // Todo lo que existía queda marcado como borrado (para que no vuelva desde la nube)
   const t = ahora();
-  [...datos.clientes, ...datos.citas, ...datos.plantillas, ...datos.programados].forEach((x) => { borrados[x.id] = t; });
+  [...datos.clientes, ...datos.citas, ...datos.plantillas, ...datos.programados, ...datos.lecturas].forEach((x) => { borrados[x.id] = t; });
   datos.envios.forEach((e) => { borrados[`envio:${e.key}`] = t; });
   datos = datosVacios();
   datos.borrados = borrados;

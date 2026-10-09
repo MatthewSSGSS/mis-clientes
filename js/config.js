@@ -4,7 +4,7 @@
 // este es el archivo. Cada vez que publiques cambios, sube APP_VERSION.
 // =============================================================================
 
-export const APP_VERSION = '2.3.0';
+export const APP_VERSION = '2.4.0';
 
 // Nube (Supabase): cuentas, sincronización y notificaciones.
 // La URL y la clave "publishable" son públicas: está bien que vayan aquí.
