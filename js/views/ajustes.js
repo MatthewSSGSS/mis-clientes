@@ -11,6 +11,8 @@ import {
 } from '../importar.js';
 import { importarDocumento, escribirLista } from '../documentos.js';
 import { abrirListas } from '../cuaderno.js';
+import { formato, tieneFormato } from '../formato.js';
+import { abrirEditorFormato } from '../formato-editor.js';
 import { abrirRecordatorio, textoRecordatorio, estadoInsignia, activarInsignia } from '../recordatorios.js';
 import { tienePin, configurarPin, quitarPin } from '../sesion.js';
 import * as nube from '../nube.js';
@@ -54,6 +56,19 @@ export function render(root) {
             <span class="hint">Si escribes un número sin "+", se le agrega este código.</span>
           </div>
         </div>
+      </div>
+
+      <div class="settings-group">
+        <h2>Cómo anotas a tus clientes</h2>
+        <div class="grouped">
+          <button class="g-row" data-formato>
+            <span class="icon-badge" data-color="green">${icon('sheet')}</span>
+            <div class="li-body"><b>Tu formato${tieneFormato() ? '' : ' (básico)'}</b>
+              <span class="small muted recorte-2" style="font-style:normal">${esc(formato().map((c) => c.titulo).join(' · '))}</span></div>
+            ${icon('chev-r', 'chev')}
+          </button>
+        </div>
+        <p class="hint mt-8">Son las columnas de tu cuaderno. Así te pide los datos al registrar una venta.</p>
       </div>
 
       <div class="settings-group">
@@ -212,6 +227,7 @@ export function render(root) {
   });
   root.querySelector('[data-insignia]')?.addEventListener('click', () => activarInsignia());
   root.querySelector('[data-listas]').addEventListener('click', () => abrirListas());
+  root.querySelector('[data-formato]').addEventListener('click', () => abrirEditorFormato());
   root.querySelector('[data-imp-doc]').addEventListener('click', () => importarDocumento());
   root.querySelector('[data-imp-lista]').addEventListener('click', () => escribirLista());
   root.querySelector('[data-imp-excel]').addEventListener('click', () => importarExcel());

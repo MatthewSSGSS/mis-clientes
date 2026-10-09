@@ -11,6 +11,7 @@ import { proximos, pendientesHoy, dinero, documentosPendientes } from '../engine
 import { citasDeCliente, filaCita, conectarCitas, abrirFormularioCita } from '../citas.js';
 import { abrirMensaje } from '../enviar.js';
 import { abrirFormularioCliente } from '../cliente-form.js';
+import { formato, valorDe, textoValor } from '../formato.js';
 import { abrirFormularioProgramado } from './mensajes.js';
 import {
   icon, avatar, pillEtapa, etapa as infoEtapa, categoria, badgeCategoria, abrirHoja, cerrarHoja, confirmar, aviso, vacio, botonInicio,
@@ -118,6 +119,7 @@ export function render(root, { params, navegar, puedeVolver }) {
             ${c.cedula ? kv('contact', 'Cédula o NIT', c.cedula) : ''}
             ${c.origen ? kv('flag', '¿Cómo llegó?', c.origen) : ''}
             ${c.email ? kv('message', 'Correo', c.email) : ''}
+            ${c.etapa === 'vendido' ? '' : formato().filter((col) => col.propia && valorDe(c, col) !== '').map((col) => kv('note', col.titulo, textoValor(valorDe(c, col), col))).join('')}
             ${kv('calendar', 'Cliente desde', fechaCorta(c.creado.slice(0, 10)))}
           </div>
         </div>
@@ -242,25 +244,35 @@ function seccionCitas(c) {
 }
 
 // --- Venta (como en el cuaderno) ---------------------------------------------------
+// Muestra las columnas de su formato (las de la venta y las propias), en su orden.
 function seccionVenta(c) {
-  const fila = (k, v, extra = '') => `<div class="venta-item"><span class="kv-k">${k}</span><span class="kv-v">${v}</span>${extra}</div>`;
+  const fila = (k, v, extra = '') => `<div class="venta-item"><span class="kv-k">${esc(k)}</span><span class="kv-v">${v}</span>${extra}</div>`;
   const comiPagada = c.fechaPagoComision && c.fechaPagoComision <= hoy();
+  const cols = formato();
+  const colPrecio = cols.find((x) => x.id === 'precio');
+  const colPoliza = cols.find((x) => x.id === 'poliza');
+  const enGrilla = cols.filter((x) => (x.venta || x.propia) && !['precio', 'poliza'].includes(x.id));
+  // Lo que tiene guardado aunque no esté en su formato, para no esconderlo
+  if (!enGrilla.some((x) => x.id === 'vehiculoComprado') && (c.vehiculoComprado || c.vehiculoInteres)) {
+    enGrilla.unshift({ id: 'vehiculoComprado', titulo: 'Vehículo', tipo: 'vehiculo' });
+  }
+  const polizaTxt = colPoliza?.titulo || 'Póliza';
   return `
     <section class="section">
       <div class="section-head"><h2 class="section-title">Venta</h2><button class="link-btn" data-editar>Editar</button></div>
       <div class="card neg-card">
         <div class="neg-precio">
-          <span class="small muted">Valor de la venta</span>
+          <span class="small muted">${esc(colPrecio?.titulo || 'Valor de la venta')}</span>
           <b>${c.precio ? esc(dinero(c.precio)) : '—'}</b>
-          ${c.poliza ? `<span class="pill" data-color="${c.poliza === 'si' ? 'green' : 'gray'}">${c.poliza === 'si' ? 'Póliza Nissan ✓' : 'Sin póliza Nissan'}</span>` : ''}
+          ${c.poliza ? `<span class="pill" data-color="${c.poliza === 'si' ? 'green' : 'gray'}">${c.poliza === 'si' ? `${esc(polizaTxt)} ✓` : `Sin ${esc(polizaTxt.toLowerCase())}`}</span>` : ''}
         </div>
         <div class="venta-grid">
-          ${fila('Vehículo', esc(c.vehiculoComprado || c.vehiculoInteres || '—'))}
-          ${fila('Pedido', esc(c.pedido || '—'))}
-          ${fila('Entrega', c.fechaCompra ? esc(fechaCorta(c.fechaCompra)) : '—')}
-          ${fila('Comisión', c.comision ? esc(dinero(c.comision)) : '—')}
-          ${fila('Pago comisión', c.fechaPagoComision ? esc(fechaCorta(c.fechaPagoComision)) : '—',
-            c.fechaPagoComision ? `<span class="small" style="color:var(--c-${comiPagada ? 'green' : 'amber'});font-weight:700">${comiPagada ? 'Ya pasó la fecha' : 'Pendiente'}</span>` : '')}
+          ${enGrilla.map((col) => {
+            const v = col.id === 'vehiculoComprado' ? c.vehiculoComprado || c.vehiculoInteres : valorDe(c, col);
+            const extra = col.id === 'fechaPagoComision' && c.fechaPagoComision
+              ? `<span class="small" style="color:var(--c-${comiPagada ? 'green' : 'amber'});font-weight:700">${comiPagada ? 'Ya pasó la fecha' : 'Pendiente'}</span>` : '';
+            return fila(col.titulo, esc(textoValor(v, col)) || '—', extra);
+          }).join('')}
         </div>
       </div>
     </section>`;

@@ -4,7 +4,7 @@
 // este es el archivo. Cada vez que publiques cambios, sube APP_VERSION.
 // =============================================================================
 
-export const APP_VERSION = '2.4.0';
+export const APP_VERSION = '2.5.0';
 
 // Nube (Supabase): cuentas, sincronización y notificaciones.
 // La URL y la clave "publishable" son públicas: está bien que vayan aquí.
@@ -75,6 +75,63 @@ export const ORIGENES = ['Vitrina', 'Referido', 'Redes sociales', 'Llamada', 'Wh
 export const MODELOS_POR_DEFECTO = [
   'Kicks', 'Kicks Play', 'Versa', 'Sentra', 'March', 'X-Trail', 'X-Trail e-POWER',
   'Qashqai', 'Pathfinder', 'Murano', 'Frontier', 'Navara', 'Leaf', 'Ariya', 'Patrol', 'Magnite',
+];
+
+// --- Formato de cada persona (las columnas de su cuaderno) ---------------------------
+// Campos que la app entiende. Cada cuenta elige cuáles usa, en qué orden y con qué
+// nombre: ese es su "formato" (ver js/formato.js). Las columnas que no están aquí se
+// guardan como campos propios del cliente (cliente.extras).
+//   tipo: texto | numero | tel | vehiculo | dinero | fecha | cumple | sino | email | largo
+//   venta: true = solo aplica a clientes que ya compraron
+//   fijo: true = obligatorio, no se puede quitar del formato
+export const CAMPOS = {
+  nombre:            { titulo: 'Nombre', tipo: 'texto', fijo: true },
+  telefono:          { titulo: 'Celular', tipo: 'tel', fijo: true },
+  pedido:            { titulo: 'Pedido', tipo: 'numero', venta: true },
+  vehiculoComprado:  { titulo: 'Vehículo', tipo: 'vehiculo', venta: true },
+  poliza:            { titulo: 'Póliza', tipo: 'sino', venta: true },
+  cedula:            { titulo: 'Cédula', tipo: 'numero' },
+  precio:            { titulo: 'Valor venta', tipo: 'dinero', venta: true },
+  fechaCompra:       { titulo: 'Fecha de entrega', tipo: 'fecha', venta: true },
+  comision:          { titulo: 'Comisión', tipo: 'dinero', venta: true },
+  fechaPagoComision: { titulo: 'Pago comisión', tipo: 'fecha', venta: true },
+  cumple:            { titulo: 'Cumpleaños', tipo: 'cumple' },
+  email:             { titulo: 'Correo', tipo: 'email' },
+  notas:             { titulo: 'Notas', tipo: 'largo' },
+};
+
+// Tipos para las columnas propias (las que la app no conoce, como "Placa")
+export const TIPOS_COLUMNA = [
+  { id: 'texto', nombre: 'Texto' },
+  { id: 'numero', nombre: 'Número' },
+  { id: 'dinero', nombre: 'Plata ($)' },
+  { id: 'fecha', nombre: 'Fecha' },
+  { id: 'sino', nombre: 'Sí / No' },
+];
+
+// El cuaderno de ventas (un cliente = una compra)
+export const FORMATO_CUADERNO = [
+  { id: 'pedido', titulo: 'Pedido' },
+  { id: 'vehiculoComprado', titulo: 'Vehículo' },
+  { id: 'nombre', titulo: 'Nombre del cliente' },
+  { id: 'poliza', titulo: 'Póliza' },
+  { id: 'cedula', titulo: 'Cédula' },
+  { id: 'telefono', titulo: 'Celular' },
+  { id: 'precio', titulo: '$ Venta' },
+  { id: 'fechaCompra', titulo: 'Fecha de entrega' },
+  { id: 'comision', titulo: '$ Comisión' },
+  { id: 'fechaPagoComision', titulo: 'Pago comisión' },
+];
+
+// Para quien todavía no ha elegido formato ni leído su cuaderno
+export const FORMATO_BASICO = [
+  { id: 'nombre', titulo: 'Nombre' },
+  { id: 'telefono', titulo: 'Celular' },
+  { id: 'vehiculoComprado', titulo: 'Vehículo' },
+  { id: 'fechaCompra', titulo: 'Fecha de compra' },
+  { id: 'precio', titulo: 'Valor' },
+  { id: 'cedula', titulo: 'Cédula' },
+  { id: 'cumple', titulo: 'Cumpleaños' },
 ];
 
 // Códigos de país para armar el número de WhatsApp

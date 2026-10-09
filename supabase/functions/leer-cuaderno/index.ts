@@ -1,7 +1,8 @@
 // @ts-nocheck — Este archivo corre en Supabase (Deno). VS Code no conoce Deno y lo marcaría en rojo.
 // =============================================================================
 // Función "leer-cuaderno" (Supabase Edge Function) — lee con Claude la foto de
-// una hoja del cuaderno de ventas y devuelve las ventas separadas por columnas.
+// una hoja del cuaderno y devuelve sus columnas (las que tenga ese cuaderno) y
+// las filas. La app manda el formato de la persona como pista.
 //
 // • Solo para usuarios con sesión iniciada (se verifica el token).
 // • Límite de lecturas por usuario al día (LIMITE_DIARIO) para cuidar el saldo.
@@ -25,51 +26,70 @@ const CORS = {
 const responder = (cuerpo: unknown, status = 200) =>
   new Response(JSON.stringify(cuerpo), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
-const INSTRUCCIONES = `Eres un asistente que pasa a digital el cuaderno de ventas de una vendedora de vehículos Nissan en Colombia.
-Recibes la foto de UNA hoja. Cada fila es una venta con estas columnas (de izquierda a derecha):
-FECHA (mes de la sección: ENERO, FEBRERO…), PEDIDO (número de 5 dígitos), VEHÍCULO (modelo Nissan: Kicks Play, Versa SR, Sentra, X-Trail, Qashqai…), NOMBRE DEL CLIENTE, P (póliza: chulo ✓ = la tomó en Nissan, X = no la tomó; ignora letras pequeñas como "o" o "d" junto a la marca), CÉDULA (o NIT de empresa, puede tener guion), CELULAR (10 dígitos, empieza por 3), $ VENTA (valor del carro en pesos), FECHA DE ENTREGA (día y mes, ej. "08 ENE"), $ COMI (comisión en pesos) y FECHA PAGO COMI (día y mes).
+const INSTRUCCIONES = `Eres un asistente que pasa a digital el cuaderno de clientes de una persona que vende vehículos en Colombia.
+Recibes la foto de UNA hoja con una tabla escrita a mano. Cada fila es un cliente (normalmente, una venta).
 
-Reglas:
-- Devuelve TODAS las filas con datos, en el orden del cuaderno. No inventes filas.
+1. Identifica las columnas de la tabla, de izquierda a derecha. En "titulo" escribe el título como está en la hoja, con mayúscula inicial (ej. "Pedido", "$ Venta", "Fecha de entrega"). Si no tiene título, ponle uno corto según su contenido.
+   En "campo" indica qué dato es:
+   pedido (número de pedido u orden) · vehiculo (modelo que compró) · nombre (nombre del cliente) · poliza (marca de si tomó la póliza o seguro) · cedula (cédula o NIT) · celular · valor_venta (valor del vehículo en pesos) · fecha_entrega (fecha de entrega o de compra) · comision (comisión en pesos) · fecha_pago_comision · cumpleanos · correo · notas (observaciones) · mes (solo el nombre del mes de la sección) · otro (cualquier otra columna: placa, color, financiera…).
+2. Devuelve TODAS las filas con datos, en el orden del cuaderno. No inventes filas. En "celdas" va un valor por cada columna, en el mismo orden; si la casilla está vacía, "".
+
+Cómo escribir cada valor:
 - Lee cada dígito con mucho cuidado: los números son lo más importante.
-- Valores en pesos como enteros sin puntos ni signos (ej. "$100'960.100" → 100960100). Si una casilla está vacía, usa 0.
-- Fechas como AAAA-MM-DD usando el año de la hoja (si no aparece, usa el año indicado). Si falta el día o la fecha, deja "".
-- La fecha de pago de la comisión suele ser 1 o 2 meses después de la entrega; si cae en enero y la entrega en diciembre, súmale un año.
-- Escribe el nombre como en el cuaderno pero con mayúscula inicial en cada palabra (ej. "Dairo Luis Luna Melendez").
-- Si una casilla no se entiende bien, escribe tu mejor lectura y agrega el nombre del campo en "dudas".`;
+- Plata (valor_venta, comision u otras cantidades en pesos): solo dígitos, sin puntos ni signos (ej. "$100'960.100" → "100960100").
+- Fechas: AAAA-MM-DD usando el año de la hoja (si no aparece, el indicado). Si falta el día, deja "". La fecha de pago de la comisión suele ser 1 o 2 meses después de la entrega; si cae en enero y la entrega en diciembre, súmale un año.
+- Marcas de sí/no (como la póliza): "si" para chulo ✓ y "no" para X. Ignora letras pequeñas como "o" o "d" junto a la marca.
+- celular y cedula: solo los dígitos (un NIT puede llevar guion).
+- nombre: como en el cuaderno, con mayúscula inicial en cada palabra (ej. "Dairo Luis Luna Melendez").
+- cumpleanos: MM-DD.
+- Otras columnas: el texto tal como está.
+- Si una casilla no se entiende bien, escribe tu mejor lectura y agrega el número de esa columna (la primera es 0) en "dudas" de la fila.`;
+
+const CAMPOS = ['pedido', 'vehiculo', 'nombre', 'poliza', 'cedula', 'celular', 'valor_venta', 'fecha_entrega', 'comision',
+  'fecha_pago_comision', 'cumpleanos', 'correo', 'notas', 'mes', 'otro'];
 
 const ESQUEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['anio', 'ventas'],
+  required: ['anio', 'columnas', 'filas'],
   properties: {
     anio: { type: 'integer', description: 'Año escrito en la hoja, o el indicado si no aparece' },
-    ventas: {
+    columnas: {
       type: 'array',
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['pedido', 'vehiculo', 'nombre', 'poliza', 'cedula', 'celular', 'valor_venta', 'fecha_entrega', 'comision', 'fecha_pago_comision', 'dudas'],
+        required: ['titulo', 'campo'],
         properties: {
-          pedido: { type: 'string' },
-          vehiculo: { type: 'string' },
-          nombre: { type: 'string' },
-          poliza: { type: 'string', enum: ['si', 'no', ''] },
-          cedula: { type: 'string' },
-          celular: { type: 'string' },
-          valor_venta: { type: 'integer' },
-          fecha_entrega: { type: 'string' },
-          comision: { type: 'integer' },
-          fecha_pago_comision: { type: 'string' },
-          dudas: {
-            type: 'array',
-            items: { type: 'string', enum: ['pedido', 'vehiculo', 'nombre', 'poliza', 'cedula', 'celular', 'valor_venta', 'fecha_entrega', 'comision', 'fecha_pago_comision'] },
-          },
+          titulo: { type: 'string' },
+          campo: { type: 'string', enum: CAMPOS },
+        },
+      },
+    },
+    filas: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['celdas', 'dudas'],
+        properties: {
+          celdas: { type: 'array', items: { type: 'string' } },
+          dudas: { type: 'array', items: { type: 'integer' } },
         },
       },
     },
   },
 };
+
+/** Las columnas que la persona suele usar (su formato), como pista para Claude. */
+function textoPista(columnas: unknown): string {
+  if (!Array.isArray(columnas)) return '';
+  const lista = columnas.slice(0, 30)
+    .map((c) => ({ titulo: String(c?.titulo ?? '').replace(/[\n\r"`]/g, ' ').trim().slice(0, 40), campo: CAMPOS.includes(c?.campo) ? c.campo : 'otro' }))
+    .filter((c) => c.titulo);
+  if (!lista.length) return '';
+  return `\nEsta persona suele anotar estas columnas (úsalas como guía, pero devuelve las que de verdad veas en la hoja): ${lista.map((c) => `"${c.titulo}" (${c.campo})`).join(', ')}.`;
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
@@ -90,6 +110,7 @@ Deno.serve(async (req) => {
   const imagen = String(cuerpo?.imagen ?? '');
   const tipo = ['image/jpeg', 'image/png', 'image/webp'].includes(cuerpo?.tipo) ? cuerpo.tipo : 'image/jpeg';
   const anio = Number(cuerpo?.anio) || new Date().getFullYear();
+  const pista = textoPista(cuerpo?.columnas);
   if (!imagen) return responder({ error: 'sin-imagen' }, 400);
   if (imagen.length > MAX_IMAGEN) return responder({ error: 'imagen-grande' }, 413);
 
@@ -115,7 +136,7 @@ Deno.serve(async (req) => {
         role: 'user',
         content: [
           { type: 'image', source: { type: 'base64', media_type: tipo, data: imagen } },
-          { type: 'text', text: `Pasa a digital esta hoja del cuaderno. Si no ves el año escrito, usa ${anio}.` },
+          { type: 'text', text: `Pasa a digital esta hoja del cuaderno. Si no ves el año escrito, usa ${anio}.${pista}` },
         ],
       }],
     });
@@ -143,7 +164,8 @@ Deno.serve(async (req) => {
 
   return responder({
     anio: datos.anio,
-    ventas: datos.ventas ?? [],
+    columnas: datos.columnas ?? [],
+    filas: datos.filas ?? [],
     uso: { entrada: respuesta.usage?.input_tokens, salida: respuesta.usage?.output_tokens },
   });
 });

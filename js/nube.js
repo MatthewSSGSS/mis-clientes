@@ -422,10 +422,10 @@ export async function desactivarPush() {
  * @returns {Promise<{anio:number, ventas:object[]}>}
  * Si falla, lanza un Error cuyo mensaje es el código del servidor ('limite', 'sin-saldo'…).
  */
-export async function leerCuadernoIA({ imagen, tipo, anio }) {
+export async function leerCuadernoIA({ imagen, tipo, anio, columnas }) {
   if (!usuario) throw new Error('no-autorizado');
   if (!navigator.onLine) throw new Error('conexion');
-  const { data, error } = await cliente().functions.invoke(NUBE.funcionLector || 'leer-cuaderno', { body: { imagen, tipo, anio } });
+  const { data, error } = await cliente().functions.invoke(NUBE.funcionLector || 'leer-cuaderno', { body: { imagen, tipo, anio, columnas } });
   if (error) {
     let codigo = 'conexion';
     try { codigo = (await error.context?.json?.())?.error || codigo; } catch { /* sin detalle */ }

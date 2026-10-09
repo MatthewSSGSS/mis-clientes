@@ -54,7 +54,9 @@ js/
   cliente-form.js     Formulario de cliente
   importar.js         Excel/CSV, contactos .vcf, copia de seguridad, exportar, ejemplos
   documentos.js       PDF, Word, fotos (OCR) y listas escritas → clientes
-  cuaderno.js         Lee las ventas del cuaderno (pedido, vehículo, cliente, póliza, cédula, celular, valor, entrega, comisión)
+  cuaderno.js         Lee las ventas del cuaderno y las guarda como "listas leídas" (tabla para revisar y pasar a clientes)
+  formato.js          El formato de cada persona: las columnas de su cuaderno (orden, nombres, columnas propias)
+  formato-editor.js   Pantalla "Tu formato" (Ajustes)
   recordatorios.js    Recordatorio diario (calendario) y número de pendientes en el ícono
   citas.js            Citas (pruebas de manejo, visitas, entregas): agendar, lista, hecha, calendario
   sesion.js           Cerrar sesión, pantalla de entrada y PIN opcional
@@ -71,7 +73,9 @@ cal/                  Eventos .ics del recordatorio diario (generados por tools/
 |---|---|
 | Cambiar cómo se leen las ventas del cuaderno | `js/cuaderno.js` (`lineaAVenta`) y los sinónimos de columnas en `js/importar.js` |
 | Agregar una etapa o una sección de mensajes | `ETAPAS` / `CATEGORIAS` en `js/config.js` |
-| Un campo nuevo en el cliente | `js/cliente-form.js` (HTML + `submit`), valor inicial en `nuevoCliente()` de `js/store.js`, y mostrarlo en `js/views/ficha.js` |
+| Un campo nuevo que la app entienda (para el formato) | `CAMPOS` en `js/config.js` y su valor inicial en `nuevoCliente()` de `js/store.js`; el formulario, la tabla y la ficha lo toman solos. Si lo lee la IA, agrégalo a `CAMPO_IA` (`js/documentos.js`) y a `CAMPOS` de `supabase/functions/leer-cuaderno/index.ts` |
+| Un campo fijo del cliente (fuera del formato) | `js/cliente-form.js` (HTML + `submit`), valor inicial en `nuevoCliente()` de `js/store.js`, y mostrarlo en `js/views/ficha.js` |
+| Filtros u orden de la lista de clientes | `FILTROS` y `ORDENES` en `js/views/clientes.js` |
 | Una regla automática nueva (p. ej. "SOAT por vencer") | `REGLAS_POR_DEFECTO` en config, `DESCRIPCION_REGLAS` y `pendientesDeReglas()` en `js/engine.js` |
 | Una pantalla nueva | `js/views/<nombre>.js` con `export function render(root, ctx)`, registrarla en `RUTAS` de `js/main.js` y agregar el link en `index.html` |
 | Un ícono | Un `<symbol id="i-nombre">` en `index.html` (estilo [Lucide](https://lucide.dev)), y luego `icon('nombre')` |
@@ -83,7 +87,7 @@ La app puede usarse **sin cuenta** (datos solo en el equipo) o **con cuenta** (c
 
 - Conexión: `NUBE` en `js/config.js` (URL, clave *publishable* y clave pública VAPID; todas públicas).
 - Base de datos: `supabase/esquema.sql`. Crea tablas, reglas RLS (cada usuario solo ve lo suyo), permisos y tareas programadas (pg_cron). Se ejecuta en *SQL Editor*.
-- Lector del cuaderno con IA: función `supabase/functions/leer-cuaderno/index.ts` (Claude Opus 5.5), desplegada como **`leer-cuaderno`** (`NUBE.funcionLector`) con *Verify JWT* apagado y el secreto `ANTHROPIC_API_KEY`. Solo con sesión iniciada; máximo 40 hojas por usuario al día (tabla `lecturas_cuaderno`).
+- Lector del cuaderno con IA: función `supabase/functions/leer-cuaderno/index.ts` (Claude Opus 5.5), desplegada como **`leer-cuaderno`** (`NUBE.funcionLector`) con *Verify JWT* apagado y el secreto `ANTHROPIC_API_KEY`. Solo con sesión iniciada; máximo 40 hojas por usuario al día (tabla `lecturas_cuaderno`). Devuelve las columnas que ve en la hoja (`columnas` + `filas`); la app manda el formato de la persona como pista y, si las columnas son distintas, le propone usarlas como su formato. La app también entiende la respuesta anterior (`ventas`), por si la función no se ha vuelto a desplegar.
 - Notificaciones: función `supabase/functions/avisos/index.ts`, desplegada en Supabase como **`Avisos`** (`NUBE.funcionAvisos`) con *Verify JWT* apagado. Usa los secretos `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` y `CRON_SECRET`.
 - `privado/` (no se sube a GitHub) tiene las claves, el SQL con los valores puestos y los secretos.
 - Correos (confirmar cuenta, recuperar contraseña): SMTP propio configurado en *Authentication → Emails*.

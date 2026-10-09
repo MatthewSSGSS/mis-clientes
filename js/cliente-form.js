@@ -1,11 +1,16 @@
 // =============================================================================
 // cliente-form.js — Formulario para crear o editar un cliente.
-// Para agregar un campo nuevo: ponlo en el HTML de abajo, léelo en `leer()`,
-// y agrégalo con su valor inicial en store.nuevoCliente().
+//
+// Los datos de la venta salen del "formato" de la persona (formato.js): se piden
+// las columnas de su cuaderno, en su orden y con sus nombres. Lo demás (etapa,
+// seguimiento, negociación, cumpleaños, notas…) es igual para todos.
+// Para agregar un campo que la app entienda: ponlo en CAMPOS (config.js) y con su
+// valor inicial en store.nuevoCliente(). Aparecerá para agregarlo al formato.
 // =============================================================================
 
 import * as store from './store.js';
 import { ETAPAS, ORIGENES, FORMAS_PAGO, DOCUMENTOS_CREDITO } from './config.js';
+import { formato, valorDe, ponerValor, atributosEntrada, ejemplo } from './formato.js';
 import { abrirHoja, cerrarHoja, aviso, icon } from './ui.js';
 import { esc, hoy, sumarDias, nombreMes, diasDelMes, norm, telefonoInternacional } from './util.js';
 
@@ -17,20 +22,71 @@ const RAPIDOS = [
   { dias: 30, txt: '1 mes' },
 ];
 
+const pesos = (n) => (Number(n) ? Number(n).toLocaleString('es-CO') : '');
+// Tipos que caben de a dos por fila
+const ANGOSTOS = ['numero', 'dinero', 'fecha'];
+
+/** Selects de día y mes para un cumpleaños ('MM-DD'). */
+function selectsCumple(clave, valor) {
+  const [m, d] = (valor || '').split('-').map((x) => Number(x) || '');
+  return `
+    <div class="row">
+      <select class="select" data-cumple-dia="${clave}" aria-label="Día">
+        <option value="">Día</option>
+        ${Array.from({ length: 31 }, (_, k) => `<option ${d === k + 1 ? 'selected' : ''}>${k + 1}</option>`).join('')}
+      </select>
+      <select class="select" data-cumple-mes="${clave}" aria-label="Mes">
+        <option value="">Mes</option>
+        ${Array.from({ length: 12 }, (_, k) => `<option value="${k + 1}" ${m === k + 1 ? 'selected' : ''}>${nombreMes(k + 1)}</option>`).join('')}
+      </select>
+    </div>`;
+}
+
+/** Un campo del formato. */
+function campoFormato(col, c, vendido) {
+  const v = valorDe(c, col);
+  const id = `f-${col.id}`;
+  const ancho = ANGOSTOS.includes(col.tipo) ? '' : 'ancho';
+  const oculto = col.venta && !vendido ? 'hidden' : '';
+  let entrada;
+  if (col.tipo === 'sino') {
+    const [si, no] = col.id === 'poliza' ? ['Sí la tomó', 'No la tomó'] : ['Sí', 'No'];
+    entrada = `<div class="chips chips-wrap" data-sino="${col.id}">
+      <button type="button" class="chip" data-v="si" aria-pressed="${v === 'si'}">${icon('check', 'i-sm')} ${si}</button>
+      <button type="button" class="chip" data-v="no" aria-pressed="${v === 'no'}">${icon('x', 'i-sm')} ${no}</button>
+    </div>`;
+  } else if (col.tipo === 'cumple') {
+    entrada = selectsCumple(col.id, v);
+  } else if (col.tipo === 'largo') {
+    entrada = `<textarea id="${id}" class="textarea" rows="3" data-campo="${col.id}">${esc(v)}</textarea>`;
+  } else {
+    const valor = col.tipo === 'dinero' ? pesos(v) : v;
+    entrada = `<input id="${id}" class="input" data-campo="${col.id}" value="${esc(valor)}" ${atributosEntrada(col)} placeholder="${esc(ejemplo(col))}">`;
+  }
+  const etiqueta = ['sino', 'cumple'].includes(col.tipo) ? `<span class="label">${esc(col.titulo)}</span>` : `<label for="${id}">${esc(col.titulo)}</label>`;
+  return `<div class="field ${ancho}" data-col="${col.id}" ${col.venta ? 'data-solo-venta' : ''} ${oculto}>${etiqueta}${entrada}</div>`;
+}
+
 /**
  * @param {string} [id] si viene, edita ese cliente; si no, crea uno nuevo
  * @param {{alGuardar?:(c:object)=>void, campos?:object, negociacion?:boolean, venta?:boolean}} [o]
  *        negociacion: abrir directo en la sección de negociación
- *        venta: "Registrar venta" (cliente que ya compró, con los datos del cuaderno)
+ *        venta: "Registrar venta" (cliente que ya compró, con los datos de su cuaderno)
  */
 export function abrirFormularioCliente(id, { alGuardar, campos, negociacion = false, venta = false } = {}) {
   const existente = id ? store.cliente(id) : null;
   const c = existente ? structuredClone(existente)
     : store.nuevoCliente(venta ? { etapa: 'vendido', fechaCompra: hoy(), ...campos } : { proximoSeguimiento: sumarDias(hoy(), 2), ...campos });
   const vendido = c.etapa === 'vendido';
-  const pesos = (n) => (Number(n) ? Number(n).toLocaleString('es-CO') : '');
-  const [cMes, cDia] = (c.cumple || '').split('-').map((x) => Number(x) || '');
   const modelos = store.ajustes().modelos || [];
+
+  const cols = formato();
+  const colNombre = cols.find((x) => x.id === 'nombre');
+  const colTel = cols.find((x) => x.id === 'telefono');
+  const otras = cols.filter((x) => !x.fijo);
+  const enFormato = new Set(cols.map((x) => x.id));
+  const hayDeProceso = otras.some((x) => !x.venta);
+  const masAbierto = !vendido || !!(c.origen || (!enFormato.has('cumple') && c.cumple) || (!enFormato.has('email') && c.email) || (!enFormato.has('notas') && c.notas));
 
   abrirHoja({
     titulo: existente ? 'Editar cliente' : venta ? 'Registrar venta' : 'Nuevo cliente',
@@ -38,56 +94,13 @@ export function abrirFormularioCliente(id, { alGuardar, campos, negociacion = fa
     cuerpo: `
       <form id="f-cliente" novalidate autocomplete="off">
         <div class="field">
-          <label for="f-nombre">Nombre completo *</label>
-          <input id="f-nombre" class="input" name="nombre" value="${esc(c.nombre)}" placeholder="Ej: María Fernanda Gómez" autocapitalize="words" ${existente ? '' : 'autofocus'} required>
+          <label for="f-nombre">${esc(colNombre.titulo)} *</label>
+          <input id="f-nombre" class="input" name="nombre" value="${esc(c.nombre)}" placeholder="${esc(ejemplo(colNombre))}" autocapitalize="words" ${existente ? '' : 'autofocus'} required>
         </div>
         <div class="field">
-          <label for="f-tel">Celular / WhatsApp *</label>
-          <input id="f-tel" class="input" name="telefono" type="tel" inputmode="tel" value="${esc(c.telefono)}" placeholder="Ej: 300 123 4567" required>
+          <label for="f-tel">${esc(colTel.titulo)} / WhatsApp *</label>
+          <input id="f-tel" class="input" name="telefono" type="tel" inputmode="tel" value="${esc(c.telefono)}" placeholder="${esc(ejemplo(colTel))}" required>
           <span class="hint" data-tel-aviso></span>
-        </div>
-        <div class="field">
-          <label for="f-cedula">Cédula o NIT</label>
-          <input id="f-cedula" class="input" name="cedula" inputmode="numeric" value="${esc(c.cedula)}" placeholder="opcional">
-        </div>
-
-        <div class="venta-box" data-compra ${vendido ? '' : 'hidden'}>
-          <div class="venta-tit">${icon('star', 'i-sm')} Datos de la venta</div>
-          <div class="row">
-            <div class="field">
-              <label for="f-pedido">Pedido</label>
-              <input id="f-pedido" class="input" name="pedido" inputmode="numeric" value="${esc(c.pedido)}" placeholder="Ej: 55480">
-            </div>
-            <div class="field">
-              <label for="f-fcompra">Fecha de entrega</label>
-              <input id="f-fcompra" class="input" name="fechaCompra" type="date" value="${esc(c.fechaCompra)}">
-            </div>
-          </div>
-          <div class="field">
-            <label for="f-comprado">Vehículo</label>
-            <input id="f-comprado" class="input" name="vehiculoComprado" list="dl-modelos" value="${esc(c.vehiculoComprado)}" placeholder="Ej: Kicks Play Advance">
-          </div>
-          <div class="field">
-            <label for="f-valor">Valor de la venta</label>
-            <input id="f-valor" class="input" name="valorVenta" inputmode="numeric" value="${esc(pesos(c.precio))}" placeholder="Ej: 100.960.100" data-dinero>
-          </div>
-          <div class="field">
-            <span class="label">Póliza</span>
-            <div class="chips chips-wrap" data-polizas>
-              <button type="button" class="chip" data-poliza="si" aria-pressed="${c.poliza === 'si'}">${icon('check', 'i-sm')} La tomó en Nissan</button>
-              <button type="button" class="chip" data-poliza="no" aria-pressed="${c.poliza === 'no'}">${icon('x', 'i-sm')} No la tomó en Nissan</button>
-            </div>
-          </div>
-          <div class="row">
-            <div class="field">
-              <label for="f-comi">Comisión</label>
-              <input id="f-comi" class="input" name="comision" inputmode="numeric" value="${esc(pesos(c.comision))}" placeholder="Ej: 743.289" data-dinero>
-            </div>
-            <div class="field">
-              <label for="f-fcomi">Pago de la comisión</label>
-              <input id="f-fcomi" class="input" name="fechaPagoComision" type="date" value="${esc(c.fechaPagoComision)}">
-            </div>
-          </div>
         </div>
 
         <div class="field">
@@ -97,12 +110,18 @@ export function abrirFormularioCliente(id, { alGuardar, campos, negociacion = fa
           </div>
         </div>
 
-        <div class="field" data-interes ${vendido ? 'hidden' : ''}>
+        ${otras.length ? `
+        <div class="venta-box" data-caja ${!vendido && !hayDeProceso ? 'hidden' : ''}>
+          <div class="venta-tit">${icon('star', 'i-sm')} <span data-caja-tit>${vendido ? 'Datos de la venta' : 'Datos del cliente'}</span></div>
+          <div class="form-grid">${otras.map((col) => campoFormato(col, c, vendido)).join('')}</div>
+        </div>` : ''}
+
+        <div class="field" data-solo-proceso ${vendido ? 'hidden' : ''}>
           <label for="f-veh">Vehículo de interés</label>
           <input id="f-veh" class="input" name="vehiculoInteres" list="dl-modelos" value="${esc(c.vehiculoInteres)}" placeholder="Ej: Kicks">
         </div>
 
-        <div class="field">
+        <div class="field" data-solo-proceso ${vendido ? 'hidden' : ''}>
           <span class="label">Próximo seguimiento</span>
           <input id="f-seg" class="input" name="proximoSeguimiento" type="date" value="${esc(c.proximoSeguimiento)}">
           <div class="chips chips-wrap mt-8" data-rapidos>
@@ -110,34 +129,6 @@ export function abrirFormularioCliente(id, { alGuardar, campos, negociacion = fa
             <button type="button" class="chip" data-dias="">Ninguno</button>
           </div>
           <span class="hint">Ese día te aparecerá en "Inicio" para escribirle.</span>
-        </div>
-
-        <div class="field">
-          <span class="label">Cumpleaños</span>
-          <div class="row">
-            <select class="select" name="cumpleDia" aria-label="Día">
-              <option value="">Día</option>
-              ${Array.from({ length: 31 }, (_, k) => `<option ${cDia === k + 1 ? 'selected' : ''}>${k + 1}</option>`).join('')}
-            </select>
-            <select class="select" name="cumpleMes" aria-label="Mes">
-              <option value="">Mes</option>
-              ${Array.from({ length: 12 }, (_, k) => `<option value="${k + 1}" ${cMes === k + 1 ? 'selected' : ''}>${nombreMes(k + 1)}</option>`).join('')}
-            </select>
-          </div>
-        </div>
-
-        <div class="row">
-          <div class="field">
-            <label for="f-origen">¿Cómo llegó?</label>
-            <select id="f-origen" class="select" name="origen">
-              <option value="">—</option>
-              ${ORIGENES.map((o) => `<option ${c.origen === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}
-            </select>
-          </div>
-          <div class="field">
-            <label for="f-email">Correo</label>
-            <input id="f-email" class="input" name="email" type="email" inputmode="email" value="${esc(c.email)}" placeholder="opcional">
-          </div>
         </div>
 
         <details class="form-extra" data-negociacion ${vendido ? 'hidden' : ''} ${negociacion || (!vendido && (c.precio || c.formaPago || c.version)) ? 'open' : ''}>
@@ -153,8 +144,8 @@ export function abrirFormularioCliente(id, { alGuardar, campos, negociacion = fa
             </div>
           </div>
           <div class="field">
-            <label for="f-precio">Precio cotizado</label>
-            <input id="f-precio" class="input" name="precio" inputmode="numeric" value="${c.precio ? esc(Number(c.precio).toLocaleString('es-CO')) : ''}" placeholder="Ej: 109.990.000" data-precio>
+            <label for="f-precio-cot">Precio cotizado</label>
+            <input id="f-precio-cot" class="input" name="precioCotizado" inputmode="numeric" value="${esc(pesos(c.precio))}" placeholder="Ej: 109.990.000" data-dinero>
           </div>
           <div class="field">
             <span class="label">Forma de pago</span>
@@ -172,10 +163,27 @@ export function abrirFormularioCliente(id, { alGuardar, campos, negociacion = fa
           </div>
         </details>
 
-        <div class="field">
-          <label for="f-notas">Notas</label>
-          <textarea id="f-notas" class="textarea" name="notas" rows="4" placeholder="Color preferido, forma de pago, retoma, familia…">${esc(c.notas)}</textarea>
-        </div>
+        <details class="form-extra" ${masAbierto ? 'open' : ''}>
+          <summary>${icon('note', 'i-sm')} Más datos <span class="muted small">opcional</span></summary>
+          ${enFormato.has('cumple') ? '' : `<div class="field"><span class="label">Cumpleaños</span>${selectsCumple('cumple', c.cumple)}<span class="hint">Para saludarlo en su día.</span></div>`}
+          <div class="row">
+            <div class="field">
+              <label for="f-origen">¿Cómo llegó?</label>
+              <select id="f-origen" class="select" name="origen">
+                <option value="">—</option>
+                ${ORIGENES.map((o) => `<option ${c.origen === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}
+              </select>
+            </div>
+            ${enFormato.has('email') ? '' : `<div class="field">
+              <label for="f-email">Correo</label>
+              <input id="f-email" class="input" data-campo-extra="email" type="email" inputmode="email" value="${esc(c.email)}" placeholder="opcional">
+            </div>`}
+          </div>
+          ${enFormato.has('notas') ? '' : `<div class="field">
+            <label for="f-notas">Notas</label>
+            <textarea id="f-notas" class="textarea" data-campo-extra="notas" rows="3" placeholder="Color preferido, familia, lo que quieras recordar…">${esc(c.notas)}</textarea>
+          </div>`}
+        </details>
         <datalist id="dl-modelos">${modelos.map((m) => `<option value="${esc(m)}">`).join('')}</datalist>
       </form>`,
     pie: `
@@ -183,32 +191,38 @@ export function abrirFormularioCliente(id, { alGuardar, campos, negociacion = fa
       <button class="btn btn-primary" type="submit" form="f-cliente">${icon('check')} Guardar</button>`,
     montar: (el) => {
       const f = el.querySelector('#f-cliente');
+      const $ = (sel) => el.querySelector(sel);
       let etapa = c.etapa;
-      const on = el.querySelector('[data-etapas] .on');
+      const on = $('[data-etapas] .on');
       if (on) on.parentElement.scrollLeft = on.offsetLeft - on.parentElement.offsetLeft - 16;
 
-      el.querySelector('[data-cancelar]').addEventListener('click', () => cerrarHoja());
+      $('[data-cancelar]').addEventListener('click', () => cerrarHoja());
 
       el.querySelectorAll('[data-etapa]').forEach((b) => b.addEventListener('click', () => {
         etapa = b.dataset.etapa;
         el.querySelectorAll('[data-etapa]').forEach((x) => x.classList.toggle('on', x === b));
         const v = etapa === 'vendido';
-        el.querySelector('[data-compra]').hidden = !v;
-        el.querySelector('[data-interes]').hidden = v;
-        el.querySelector('[data-negociacion]').hidden = v;
+        el.querySelectorAll('[data-solo-venta]').forEach((x) => { x.hidden = !v; });
+        el.querySelectorAll('[data-solo-proceso]').forEach((x) => { x.hidden = v; });
+        $('[data-negociacion]').hidden = v;
+        const caja = $('[data-caja]');
+        if (caja) { caja.hidden = !v && !hayDeProceso; $('[data-caja-tit]').textContent = v ? 'Datos de la venta' : 'Datos del cliente'; }
         if (v) {
-          if (!f.fechaCompra.value) f.fechaCompra.value = hoy();
-          if (!f.vehiculoComprado.value) f.vehiculoComprado.value = f.vehiculoInteres.value;
-          if (!f.valorVenta.value && f.precio.value) f.valorVenta.value = f.precio.value;
+          const fc = $('[data-campo="fechaCompra"]'), vc = $('[data-campo="vehiculoComprado"]'), pv = $('[data-campo="precio"]');
+          if (fc && !fc.value) fc.value = hoy();
+          if (vc && !vc.value) vc.value = f.vehiculoInteres.value;
+          if (pv && !pv.value && f.precioCotizado.value) pv.value = f.precioCotizado.value;
         }
       }));
 
-      // Venta: póliza (tocar de nuevo la quita) y valores con puntos de miles
-      let poliza = c.poliza;
-      el.querySelectorAll('[data-poliza]').forEach((b) => b.addEventListener('click', () => {
-        poliza = poliza === b.dataset.poliza ? '' : b.dataset.poliza;
-        el.querySelectorAll('[data-poliza]').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.poliza === poliza)));
-      }));
+      // Sí / No (tocar de nuevo lo quita)
+      const sinos = Object.fromEntries(otras.filter((x) => x.tipo === 'sino').map((x) => [x.id, valorDe(c, x)]));
+      el.querySelectorAll('[data-sino]').forEach((g) => g.querySelectorAll('[data-v]').forEach((b) => b.addEventListener('click', () => {
+        const k = g.dataset.sino;
+        sinos[k] = sinos[k] === b.dataset.v ? '' : b.dataset.v;
+        g.querySelectorAll('[data-v]').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.v === sinos[k])));
+      })));
+      // Plata con puntos de miles
       el.querySelectorAll('[data-dinero]').forEach((i) => i.addEventListener('input', () => {
         const n = Number(i.value.replace(/\D/g, ''));
         i.value = n ? n.toLocaleString('es-CO') : '';
@@ -223,29 +237,29 @@ export function abrirFormularioCliente(id, { alGuardar, campos, negociacion = fa
       el.querySelectorAll('[data-pago]').forEach((b) => b.addEventListener('click', () => {
         formaPago = formaPago === b.dataset.pago ? '' : b.dataset.pago; // tocar de nuevo la quita
         el.querySelectorAll('[data-pago]').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.pago === formaPago)));
-        el.querySelector('[data-hint-credito]').hidden = formaPago !== 'credito';
+        $('[data-hint-credito]').hidden = formaPago !== 'credito';
       }));
-      const precio = el.querySelector('[data-precio]');
-      precio.addEventListener('input', () => {
-        const n = Number(precio.value.replace(/\D/g, ''));
-        precio.value = n ? n.toLocaleString('es-CO') : '';
-      });
-      const tieneRetoma = el.querySelector('[data-tiene-retoma]');
+      const tieneRetoma = $('[data-tiene-retoma]');
       tieneRetoma.addEventListener('change', () => {
-        el.querySelector('[data-retoma]').hidden = !tieneRetoma.checked;
-        if (tieneRetoma.checked) el.querySelector('[data-retoma]').focus();
+        $('[data-retoma]').hidden = !tieneRetoma.checked;
+        if (tieneRetoma.checked) $('[data-retoma]').focus();
       });
-      if (negociacion) setTimeout(() => el.querySelector('[data-negociacion]').scrollIntoView({ block: 'start', behavior: 'smooth' }), 150);
+      if (negociacion) setTimeout(() => $('[data-negociacion]').scrollIntoView({ block: 'start', behavior: 'smooth' }), 150);
 
       // Avisar si el teléfono ya existe
       const tel = f.telefono;
-      const avisoTel = el.querySelector('[data-tel-aviso]');
+      const avisoTel = $('[data-tel-aviso]');
       tel.addEventListener('input', () => {
         const cp = store.ajustes().codigoPais;
         const n = telefonoInternacional(tel.value, cp);
         const dup = n.length > 6 && store.clientes().find((x) => x.id !== c.id && telefonoInternacional(x.telefono, cp) === n);
         avisoTel.innerHTML = dup ? `<span class="field-error">Ya tienes a <b>${esc(dup.nombre)}</b> con este número.</span>` : '';
       });
+
+      const leerCumple = (clave) => {
+        const dia = Number($(`[data-cumple-dia="${clave}"]`)?.value), mes = Number($(`[data-cumple-mes="${clave}"]`)?.value);
+        return dia && mes ? `${String(mes).padStart(2, '0')}-${String(Math.min(dia, diasDelMes(2024, mes))).padStart(2, '0')}` : '';
+      };
 
       f.addEventListener('submit', (e) => {
         e.preventDefault();
@@ -255,34 +269,42 @@ export function abrirFormularioCliente(id, { alGuardar, campos, negociacion = fa
         f.telefono.classList.toggle('invalid', !telefono);
         if (!nombre || !telefono) {
           (nombre ? f.telefono : f.nombre).focus();
-          aviso('Falta el nombre o el celular', { icono: 'x' });
+          aviso(`Falta ${!nombre ? 'el nombre' : 'el celular'}`, { icono: 'x' });
           return;
         }
-        const dia = Number(f.cumpleDia.value), mes = Number(f.cumpleMes.value);
-        const cumple = dia && mes ? `${String(mes).padStart(2, '0')}-${String(Math.min(dia, diasDelMes(2024, mes))).padStart(2, '0')}` : '';
 
         const etapaAnterior = existente?.etapa;
+        // Columnas del formato
+        for (const col of otras) {
+          let v;
+          if (col.tipo === 'sino') v = sinos[col.id] || '';
+          else if (col.tipo === 'cumple') v = leerCumple(col.id);
+          else {
+            const i = $(`[data-campo="${col.id}"]`);
+            if (!i) continue;
+            v = col.tipo === 'dinero' ? Number(i.value.replace(/\D/g, '')) || '' : i.value.trim();
+          }
+          ponerValor(c, col, v);
+        }
         Object.assign(c, {
           nombre: nombre.replace(/\s+/g, ' '),
-          telefono, etapa, cumple,
-          email: f.email.value.trim(),
+          telefono, etapa,
           origen: f.origen.value,
           vehiculoInteres: f.vehiculoInteres.value.trim(),
-          vehiculoComprado: f.vehiculoComprado.value.trim(),
-          fechaCompra: f.fechaCompra.value,
           proximoSeguimiento: f.proximoSeguimiento.value,
-          notas: f.notas.value.trim(),
           version: f.version.value.trim(),
           color: f.color.value.trim(),
-          precio: (etapa === 'vendido' ? Number(f.valorVenta.value.replace(/\D/g, '')) : Number(f.precio.value.replace(/\D/g, ''))) || '',
-          cedula: f.cedula.value.trim(),
-          pedido: f.pedido.value.trim(),
-          poliza,
-          comision: Number(f.comision.value.replace(/\D/g, '')) || '',
-          fechaPagoComision: f.fechaPagoComision.value,
           formaPago,
           retoma: tieneRetoma.checked ? (f.retoma.value.trim() || 'Sí') : '',
         });
+        if (!enFormato.has('cumple')) c.cumple = leerCumple('cumple');
+        el.querySelectorAll('[data-campo-extra]').forEach((i) => { c[i.dataset.campoExtra] = i.value.trim(); });
+        // En negociación el precio es el cotizado; ya vendido, el valor de la venta
+        if (etapa !== 'vendido') c.precio = Number(f.precioCotizado.value.replace(/\D/g, '')) || '';
+        else if (!enFormato.has('precio') && !c.precio) c.precio = Number(f.precioCotizado.value.replace(/\D/g, '')) || '';
+        if (etapa === 'vendido' && !c.fechaCompra && !enFormato.has('fechaCompra')) c.fechaCompra = hoy();
+        if (etapa === 'vendido' && !c.vehiculoComprado && !enFormato.has('vehiculoComprado')) c.vehiculoComprado = c.vehiculoInteres;
+
         // Al elegir crédito, se arma la lista de documentos
         if (formaPago === 'credito' && !c.documentos?.length) {
           c.documentos = DOCUMENTOS_CREDITO.map((nombre, i) => ({ id: `doc_${Date.now().toString(36)}_${i}`, nombre, listo: false }));

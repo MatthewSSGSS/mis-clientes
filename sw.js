@@ -10,7 +10,7 @@
 // ARCHIVOS y cambia VERSION.
 // =============================================================================
 
-const VERSION = 'v15';
+const VERSION = 'v16';
 const CACHE = `mis-clientes-${VERSION}`;
 
 const ARCHIVOS = [
@@ -36,6 +36,8 @@ const ARCHIVOS = [
   './js/sincro.js',
   './js/views/acceso.js',
   './js/cuaderno.js',
+  './js/formato.js',
+  './js/formato-editor.js',
   './js/vendor/supabase.js',
   './js/views/hoy.js',
   './js/views/clientes.js',

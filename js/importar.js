@@ -10,7 +10,8 @@
 
 import * as store from './store.js';
 import { abrirHoja, cerrarHoja, aviso, confirmar, icon, avatar } from './ui.js';
-import { fechaConMes, aPesos, aPoliza, COLUMNAS_CUADERNO, nombreBonito, vehiculoBonito } from './cuaderno.js';
+import { fechaConMes, aPesos, aPoliza, nombreBonito, vehiculoBonito } from './cuaderno.js';
+import { formato, convertir } from './formato.js';
 import {
   esc, norm, hoy, sumarDias, sumarMeses, plural, uid, telefonoInternacional, telefonoBonito,
   compartirODescargar, descargarArchivo, elegirArchivo, leerArchivo, cargarScript,
@@ -90,7 +91,12 @@ function mapearColumnas(encabezados) {
   const mapa = {};
   const usados = new Set();
   const hs = encabezados.map((h) => norm(h));
-  // Primero coincidencias exactas, luego parciales
+  // Primero los nombres de las columnas de su formato (así se llaman en su plantilla)
+  for (const col of formato()) {
+    const i = hs.findIndex((h, k) => !usados.has(k) && h && h === norm(col.titulo));
+    if (i >= 0) { mapa[col.id] = i; usados.add(i); }
+  }
+  // Luego coincidencias exactas, luego parciales
   for (const modo of ['exacta', 'parcial']) {
     for (const [campo, sins] of Object.entries(SINONIMOS)) {
       if (mapa[campo] !== undefined) continue;
@@ -157,10 +163,15 @@ export function filasAClientes(filas, origen = 'Importado') {
 
   // ¿Es una hoja de ventas (como el cuaderno)? Entonces todos son clientes que ya compraron.
   const esVentas = ['pedido', 'fechaCompra', 'comision', 'precio'].filter((k) => mapa[k] !== undefined).length >= 2;
+  const propias = formato().filter((c) => c.propia && mapa[c.id] !== undefined);
   const clientes = limpias.slice(1).map((f) => {
     const nombre = [txt(f, 'nombre'), txt(f, 'apellido')].filter(Boolean).join(' ').replace(/\s+/g, ' ');
-    const etapa = esVentas ? 'vendido' : aEtapa(txt(f, 'etapa'));
     const fechaCompra = aFechaISO(val(f, 'fechaCompra'));
+    const etapa0 = esVentas ? 'vendido' : aEtapa(txt(f, 'etapa'));
+    const etapa = fechaCompra && etapa0 === 'nuevo' ? 'vendido' : etapa0;
+    // Si la única columna de vehículo es la "comprada" (de su formato) y no compró, es el de interés
+    const vehC = txt(f, 'vehiculoComprado'), vehI = txt(f, 'vehiculoInteres');
+    const vehEsInteres = !esVentas && etapa !== 'vendido' && mapa.vehiculoInteres === undefined;
     let fechaPagoComision = aFechaISO(val(f, 'fechaPagoComision'));
     if (fechaCompra && fechaPagoComision && fechaPagoComision < fechaCompra) {
       fechaPagoComision = `${Number(fechaPagoComision.slice(0, 4)) + 1}${fechaPagoComision.slice(4)}`;
@@ -170,10 +181,10 @@ export function filasAClientes(filas, origen = 'Importado') {
       telefono: txt(f, 'telefono').replace(/\.0$/, ''),
       email: txt(f, 'email'),
       cumple: aCumple(val(f, 'cumple')),
-      vehiculoInteres: esVentas ? '' : vehiculoBonito(txt(f, 'vehiculoInteres')),
-      vehiculoComprado: vehiculoBonito(txt(f, 'vehiculoComprado') || (esVentas ? txt(f, 'vehiculoInteres') : '')),
+      vehiculoInteres: esVentas ? '' : vehiculoBonito(vehI || (vehEsInteres ? vehC : '')),
+      vehiculoComprado: vehEsInteres ? '' : vehiculoBonito(vehC || (esVentas ? vehI : '')),
       fechaCompra,
-      etapa: fechaCompra && etapa === 'nuevo' ? 'vendido' : etapa,
+      etapa,
       pedido: txt(f, 'pedido').replace(/\.0$/, ''),
       cedula: txt(f, 'cedula').replace(/\.0$/, ''),
       poliza: aPoliza(val(f, 'poliza')),
@@ -183,6 +194,7 @@ export function filasAClientes(filas, origen = 'Importado') {
       origen: txt(f, 'origen'),
       proximoSeguimiento: aFechaISO(val(f, 'proximoSeguimiento')),
       notas: txt(f, 'notas'),
+      extras: Object.fromEntries(propias.map((c) => [c.id, convertir(val(f, c.id), c.tipo)]).filter(([, v]) => v !== '')),
       historial: [{ id: uid('h_'), fecha: new Date().toISOString(), tipo: 'creado', texto: origen }],
     });
   });
@@ -245,7 +257,8 @@ export async function importarExcel() {
     });
     return;
   }
-  vistaPreviaImportacion(clientes, Object.keys(mapa).map((k) => `${ETIQUETAS[k]} ← "${encabezados[mapa[k]]}"`));
+  const nombreDe = (k) => ETIQUETAS[k] || formato().find((c) => c.id === k)?.titulo || k;
+  vistaPreviaImportacion(clientes, Object.keys(mapa).map((k) => `${nombreDe(k)} ← "${encabezados[mapa[k]]}"`));
 }
 
 export function separarDuplicados(lista) {
@@ -387,18 +400,21 @@ export async function importarContactos() {
   });
 }
 
-// --- Plantilla de Excel con las columnas del cuaderno ----------------------------
+// --- Plantilla de Excel con las columnas de su formato ---------------------------
 export async function descargarPlantillaVentas() {
+  const cols = formato();
+  const titulos = cols.map((c) => c.titulo);
+  const tipos = new Set(cols.map((c) => c.tipo));
   try {
     const XLSX = await cargarXLSX();
-    const ws = XLSX.utils.aoa_to_sheet([COLUMNAS_CUADERNO]);
-    ws['!cols'] = COLUMNAS_CUADERNO.map((k) => ({ wch: Math.max(14, k.length + 4) }));
+    const ws = XLSX.utils.aoa_to_sheet([titulos]);
+    ws['!cols'] = titulos.map((k) => ({ wch: Math.max(14, k.length + 4) }));
     const ayuda = XLSX.utils.aoa_to_sheet([
       ['Cómo llenar la plantilla'],
-      ['• Una venta por fila, igual que en el cuaderno.'],
-      ['• Póliza: ✓ (o "si") si la tomó en Nissan, X (o "no") si no.'],
-      ['• Fechas: 08/01/2026 o "08 ENE".'],
-      ['• Valores: con o sin puntos y $ (ej: $100.960.100).'],
+      ['• Un cliente por fila, igual que en el cuaderno.'],
+      ...(tipos.has('sino') ? [['• Sí / No (como la póliza): ✓ o "si" si la tomó, X o "no" si no.']] : []),
+      ...(tipos.has('fecha') ? [['• Fechas: 08/01/2026 o "08 ENE".']] : []),
+      ...(tipos.has('dinero') ? [['• Valores: con o sin puntos y $ (ej: $100.960.100).']] : []),
       ['• Cuando termines, en la app: Pasar clientes → Excel o CSV.'],
     ]);
     ayuda['!cols'] = [{ wch: 70 }];
@@ -409,13 +425,14 @@ export async function descargarPlantillaVentas() {
     await compartirODescargar('plantilla-ventas.xlsx', buf, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   } catch {
     const q = (v) => `"${String(v).replace(/"/g, '""')}"`;
-    descargarArchivo('plantilla-ventas.csv', '﻿' + COLUMNAS_CUADERNO.map(q).join(';') + '\r\n', 'text/csv;charset=utf-8');
+    descargarArchivo('plantilla-ventas.csv', '﻿' + titulos.map(q).join(';') + '\r\n', 'text/csv;charset=utf-8');
   }
 }
 
 // --- Exportar a Excel ---------------------------------------------------------
 export async function exportarExcel() {
   const etapas = { nuevo: 'Nuevo', cotizado: 'Cotizado', negociando: 'Negociando', vendido: 'Vendido', perdido: 'No compró' };
+  const propias = formato().filter((col) => col.propia);
   const filas = store.clientes().map((c) => ({
     Nombre: c.nombre,
     Celular: c.telefono,
@@ -440,6 +457,7 @@ export async function exportarExcel() {
     Retoma: c.retoma || '',
     'Documentos pendientes': (c.documentos || []).filter((d) => !d.listo).map((d) => d.nombre).join(', '),
     Notas: c.notas,
+    ...Object.fromEntries(propias.map((col) => [col.titulo, c.extras?.[col.id] ?? ''])),
     'Registrado': (c.creado || '').slice(0, 10),
   }));
   if (!filas.length) { aviso('No hay clientes para exportar', { icono: 'x' }); return; }

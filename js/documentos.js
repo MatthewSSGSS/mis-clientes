@@ -24,6 +24,8 @@ import {
   importarExcel, importarContactos, filasAClientes, vistaPreviaImportacion, ETIQUETAS, aCumple, descargarPlantillaVentas,
 } from './importar.js';
 import { pareceCuaderno, lineasAVentas, revisarVentas, abrirListas } from './cuaderno.js';
+import { FORMATO_CUADERNO } from './config.js';
+import { formato, infoColumna, convertir, columnaPorTitulo, idPropio } from './formato.js';
 import * as nube from './nube.js';
 
 const LIBS = {
@@ -42,7 +44,7 @@ export function menuImportar() {
     { id: 'pegar', icono: 'note', color: 'green', titulo: 'Pegar el texto de la foto del cuaderno', sub: 'La forma más confiable: copias el texto de la foto con el iPhone y lo pegas aquí' },
     { id: 'doc', icono: 'scan', color: 'red', titulo: 'Foto o PDF del cuaderno', sub: 'La app intenta leer la letra; revisa los números' },
     { id: 'excel', icono: 'sheet', color: 'violet', titulo: 'Excel o CSV', sub: 'Con las columnas del cuaderno, o al menos Nombre y Celular' },
-    { id: 'plantilla', icono: 'download', color: 'amber', titulo: 'Descargar plantilla de Excel', sub: 'Con las mismas columnas del cuaderno, para llenarla y luego importarla' },
+    { id: 'plantilla', icono: 'download', color: 'amber', titulo: 'Descargar plantilla de Excel', sub: 'Con las columnas de tu formato, para llenarla y luego importarla' },
     { id: 'vcf', icono: 'contact', color: 'blue', titulo: 'Contactos (.vcf)', sub: 'Exportados de iCloud, Google o tu celular' },
   ];
   abrirHoja({
@@ -125,11 +127,11 @@ export async function importarDocumento() {
         if (r.lineas) { prog.terminar(); procesarLineas(r.lineas, { origen, archivo: file.name }); return; } // PDF con texto
         lienzos = r.lienzos;
       }
-      const ventas = await leerConClaude(lienzos, prog);
+      const { filas, columnas } = await leerConClaude(lienzos, prog);
       if (prog.cancelado()) return;
       prog.terminar(true);
-      if (!ventas.length) { aviso('No encontré ventas en esa foto. Revisa que se vea toda la hoja.', { icono: 'x', ms: 7000 }); return; }
-      revisarVentas(ventas, { ia: true, origen });
+      if (!filas.length) { aviso('No encontré clientes en esa foto. Revisa que se vea toda la hoja.', { icono: 'x', ms: 7000 }); return; }
+      revisarVentas(filas, { columnas, ia: true, origen });
       return;
     } catch (e) {
       console.error(e);
@@ -180,11 +182,37 @@ async function importarSinIA(file, nombre, origen) {
 
 // --- Lector con Claude ------------------------------------------------------------------
 const MAX_PAGINAS_IA = 10;
-// Campos que Claude marca como dudosos → campos de la pantalla de revisión
+// Campos con que responde Claude → campos de la app (ver CAMPOS en config.js)
 const CAMPO_IA = {
-  pedido: 'pedido', vehiculo: 'vehiculo', nombre: 'nombre', cedula: 'cedula', celular: 'telefono',
+  pedido: 'pedido', vehiculo: 'vehiculoComprado', nombre: 'nombre', poliza: 'poliza', cedula: 'cedula', celular: 'telefono',
   valor_venta: 'precio', fecha_entrega: 'fechaCompra', comision: 'comision', fecha_pago_comision: 'fechaPagoComision',
+  cumpleanos: 'cumple', correo: 'email', notas: 'notas',
 };
+const IA_DE_CAMPO = Object.fromEntries(Object.entries(CAMPO_IA).map(([k, v]) => [v, k]));
+
+/**
+ * Columnas que Claude vio en la hoja → columnas de la app.
+ * Las que no conoce ("otro") se vuelven columnas propias; si la persona ya tiene una
+ * con ese nombre en su formato, se usa esa.
+ * @returns {{ids:(string|null)[], columnas:object[]}} ids: por cada columna de la hoja, su id (null = se ignora)
+ */
+function columnasDeClaude(colsIA, conocidas) {
+  const ids = [], columnas = [];
+  for (const ci of colsIA || []) {
+    const titulo = String(ci.titulo || '').trim();
+    let col = null;
+    if (ci.campo === 'mes') { ids.push(null); continue; } // el mes de la sección ya va en la fecha
+    if (CAMPO_IA[ci.campo]) col = infoColumna({ id: CAMPO_IA[ci.campo], titulo });
+    else {
+      const propia = columnaPorTitulo(titulo, [...columnas, ...conocidas].filter((c) => c.propia));
+      col = propia ? { ...propia } : infoColumna({ id: idPropio(titulo, [...columnas, ...conocidas].map((c) => c.id)), titulo, tipo: 'texto' });
+    }
+    if (columnas.some((c) => c.id === col.id)) { ids.push(null); continue; }
+    ids.push(col.id);
+    columnas.push(col);
+  }
+  return { ids, columnas };
+}
 
 function mensajeErrorIA(codigo) {
   return ({
@@ -203,27 +231,53 @@ function mensajeErrorIA(codigo) {
 /** Lienzo → base64 JPEG (sin el prefijo "data:") */
 const aBase64 = (lienzo) => lienzo.toDataURL('image/jpeg', 0.85).split(',')[1];
 
-/** Envía cada hoja a Claude (por el servidor) y junta las ventas. */
+/**
+ * Envía cada hoja a Claude (por el servidor) y junta las filas.
+ * Claude devuelve las columnas que ve en la hoja; el formato de la persona va como pista.
+ * @returns {Promise<{filas:object[], columnas:object[]}>}
+ */
 async function leerConClaude(lienzos, prog) {
-  const ventas = [];
+  const filas = [];
+  let columnas = [];
   const anio = new Date().getFullYear();
+  const mio = formato();
+  const pista = mio.map((c) => ({ titulo: c.titulo, campo: IA_DE_CAMPO[c.id] || 'otro' }));
   for (let i = 0; i < lienzos.length; i++) {
     if (prog.cancelado()) break;
     prog.texto(lienzos.length > 1 ? `Claude está leyendo la hoja ${i + 1} de ${lienzos.length}… (puede tardar un minuto)` : 'Claude está leyendo la hoja… (puede tardar un minuto)');
     prog.avance((i + 0.3) / lienzos.length);
-    const r = await nube.leerCuadernoIA({ imagen: aBase64(lienzos[i]), tipo: 'image/jpeg', anio });
-    for (const v of r.ventas || []) {
-      ventas.push({
-        linea: '', pedido: String(v.pedido || '').replace(/\D/g, ''), vehiculo: v.vehiculo || '', nombre: v.nombre || '',
-        poliza: v.poliza || '', cedula: v.cedula || '', telefono: String(v.celular || '').replace(/\D/g, ''),
-        precio: Number(v.valor_venta) || 0, fechaCompra: v.fecha_entrega || '', comision: Number(v.comision) || 0,
-        fechaPagoComision: v.fecha_pago_comision || '',
-        dudas: (v.dudas || []).map((d) => CAMPO_IA[d]).filter(Boolean),
-      });
+    const r = await nube.leerCuadernoIA({ imagen: aBase64(lienzos[i]), tipo: 'image/jpeg', anio, columnas: pista });
+    if (Array.isArray(r.ventas)) {
+      // Respuesta de la función anterior (columnas fijas del cuaderno de ventas)
+      if (!columnas.length) columnas = FORMATO_CUADERNO.map(infoColumna);
+      for (const v of r.ventas) {
+        filas.push({
+          linea: '', pedido: String(v.pedido || '').replace(/\D/g, ''), vehiculoComprado: v.vehiculo || '', nombre: v.nombre || '',
+          poliza: v.poliza || '', cedula: v.cedula || '', telefono: String(v.celular || '').replace(/\D/g, ''),
+          precio: Number(v.valor_venta) || 0, fechaCompra: v.fecha_entrega || '', comision: Number(v.comision) || 0,
+          fechaPagoComision: v.fecha_pago_comision || '',
+          dudas: (v.dudas || []).map((d) => CAMPO_IA[d]).filter(Boolean),
+        });
+      }
+    } else {
+      const hoja = columnasDeClaude(r.columnas, [...columnas, ...mio]);
+      for (const c of hoja.columnas) if (!columnas.some((x) => x.id === c.id)) columnas.push(c);
+      for (const f of r.filas || []) {
+        const fila = { linea: '', dudas: [] };
+        hoja.ids.forEach((id, k) => {
+          if (!id) return;
+          const col = columnas.find((c) => c.id === id);
+          let v = convertir((f.celdas || [])[k] ?? '', col.tipo, r.anio || anio);
+          if (id === 'telefono' || id === 'pedido') v = String(v).replace(/\D/g, '');
+          fila[id] = v;
+        });
+        fila.dudas = (f.dudas || []).map((k) => hoja.ids[k]).filter(Boolean);
+        if (Object.keys(fila).some((k) => !['linea', 'dudas'].includes(k) && fila[k] !== '' && fila[k] !== 0)) filas.push(fila);
+      }
     }
     prog.avance((i + 1) / lienzos.length);
   }
-  return ventas;
+  return { filas, columnas };
 }
 
 /** Ventana con barra de progreso mientras se lee el archivo. */

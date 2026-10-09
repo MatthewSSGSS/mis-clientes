@@ -16,14 +16,14 @@
 //   • marcarse en `borrados` cuando se elimina (marcarBorrado).
 // =============================================================================
 
-import { PLANTILLAS_POR_DEFECTO, REGLAS_POR_DEFECTO, MODELOS_POR_DEFECTO } from './config.js';
+import { PLANTILLAS_POR_DEFECTO, REGLAS_POR_DEFECTO, MODELOS_POR_DEFECTO, FORMATO_CUADERNO } from './config.js';
 import { uid } from './util.js';
 
 export const CLAVE_LOCAL = 'misclientes:datos';
 export const claveCuenta = (idUsuario) => `misclientes:cuenta:${idUsuario}`;
 let CLAVE = CLAVE_LOCAL;
 
-export const SCHEMA = 5;
+export const SCHEMA = 6;
 const MAX_ENVIOS = 5000; // historial global de envíos que se conserva
 const DIAS_BORRADOS = 90; // cuánto se recuerda que algo se borró (para sincronizar)
 
@@ -61,7 +61,33 @@ const MIGRACIONES = {
     d.lecturas = Array.isArray(d.lecturas) ? d.lecturas : [];
     return d;
   },
+  // 2.5.0: formato propio de cada persona (columnas de su cuaderno) y campos propios
+  6: (d) => {
+    const clientes = Array.isArray(d.clientes) ? d.clientes : [];
+    clientes.forEach(completarCliente);
+    d.lecturas = Array.isArray(d.lecturas) ? d.lecturas : [];
+    d.lecturas.forEach(lecturaConColumnas);
+    // Quien ya pasó su cuaderno de ventas queda con ese formato
+    d.ajustes = d.ajustes && typeof d.ajustes === 'object' ? d.ajustes : {};
+    if (!Array.isArray(d.ajustes.formato) && (d.lecturas.length || clientes.some((c) => c.pedido || c.comision))) {
+      d.ajustes.formato = structuredClone(FORMATO_CUADERNO);
+    }
+    return d;
+  },
 };
+
+/** Las listas leídas antes de 2.5.0 tenían columnas fijas: se les ponen las del cuaderno. */
+function lecturaConColumnas(l) {
+  if (Array.isArray(l.columnas)) return l;
+  l.columnas = structuredClone(FORMATO_CUADERNO);
+  const renombrar = (k) => (k === 'vehiculo' ? 'vehiculoComprado' : k);
+  (Array.isArray(l.filas) ? l.filas : []).forEach((x) => {
+    if ('vehiculo' in x) { x.vehiculoComprado = x.vehiculo; delete x.vehiculo; }
+    x.dudasIA = (x.dudasIA || []).map(renombrar);
+    x.editados = (x.editados || []).map(renombrar);
+  });
+  return l;
+}
 
 /** Campos de negociación que pueden faltar en clientes viejos. */
 function completarCliente(c) {
@@ -77,6 +103,8 @@ function completarCliente(c) {
   c.poliza ??= '';            // 'si' (la tomó en Nissan) | 'no' | ''
   c.comision ??= '';
   c.fechaPagoComision ??= '';
+  // Columnas propias de su formato (las que la app no conoce): { x_placa: 'ABC123' }
+  c.extras = c.extras && typeof c.extras === 'object' && !Array.isArray(c.extras) ? c.extras : {};
   return c;
 }
 
@@ -137,6 +165,7 @@ export function migrar(d) {
   d.envios = Array.isArray(d.envios) ? d.envios : [];
   d.citas = Array.isArray(d.citas) ? d.citas : [];
   d.lecturas = Array.isArray(d.lecturas) ? d.lecturas : [];
+  d.lecturas.forEach(lecturaConColumnas);
   d.borrados = d.borrados && typeof d.borrados === 'object' ? d.borrados : {};
   d.clientes.forEach((c) => { c.historial = Array.isArray(c.historial) ? c.historial : []; completarCliente(c); });
   d.schema = SCHEMA;
@@ -244,7 +273,7 @@ export function nuevoCliente(campos = {}) {
     etapa: 'nuevo', origen: '', vehiculoInteres: '', vehiculoComprado: '', fechaCompra: '',
     proximoSeguimiento: '', notas: '', historial: [],
     version: '', color: '', precio: '', formaPago: '', retoma: '', documentos: [],
-    pedido: '', cedula: '', poliza: '', comision: '', fechaPagoComision: '',
+    pedido: '', cedula: '', poliza: '', comision: '', fechaPagoComision: '', extras: {},
     creado: ahora(), actualizado: ahora(),
     ...campos,
   };
@@ -357,8 +386,8 @@ export function eliminarCita(id) {
 
 // --- Listas leídas del cuaderno ----------------------------------------------
 // { id, nombre, fuente: 'ia'|'ocr'|'texto', creado, actualizado,
-//   filas: [{ pedido, vehiculo, nombre, poliza, cedula, telefono, precio,
-//             fechaCompra, comision, fechaPagoComision, linea,
+//   columnas: [{ id, titulo, tipo? }]   (las del cuaderno, en su orden; ver formato.js)
+//   filas: [{ <id de columna>: valor, …, linea,
 //             dudasIA: [], editados: [], elegido, pasada, clienteId }] }
 export const lecturas = () => datos.lecturas;
 export const lectura = (id) => datos.lecturas.find((x) => x.id === id);

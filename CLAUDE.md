@@ -17,6 +17,7 @@ App web estática ("Mis Clientes") para seguimiento de clientes de una vendedora
 - `js/store.js`: única fuente de verdad. Las mutaciones llaman a `cambio()`, que guarda y notifica. `main.js` vuelve a dibujar la vista actual en cada cambio, salvo que haya un input enfocado (entonces espera al blur).
 - `js/engine.js`: genera los "pendientes" (`{key, clienteId, fecha, categoria, tipo, plantillaId|texto, titulo}`) a partir de reglas y programados. Un pendiente desaparece cuando su `key` está en `store.envios`.
 - Vistas en `js/views/*.js`: `render(root, ctx)` arma el HTML con template strings (siempre escapar con `esc()`) y conecta eventos sobre `root`.
+- `js/formato.js`: el "formato" de cada cuenta (`ajustes.formato`): columnas de su cuaderno en su orden. Ids de `CAMPOS` (config.js) se guardan en ese campo del cliente; ids `x_…` son columnas propias en `cliente.extras`. Nombre y celular siempre van. Con él se arman el formulario, la tabla de listas leídas, la tabla de clientes en computador, la ficha y la plantilla de Excel.
 - `js/ui.js`: `abrirHoja` (ventana inferior, maneja el botón atrás), `aviso` (toast con acción), `confirmar`.
 
 ## Al cambiar algo

@@ -14,9 +14,15 @@
 // lineaAVenta() saca los datos de una línea por "forma": pedido (5 dígitos al
 // inicio), celular (10 dígitos que empiezan por 3), plata ($ o números grandes),
 // fechas ("08 ENE"), etc. No importa el orden ni los separadores.
+//
+// Lo leído queda como una "lista" (store.lecturas) con las columnas de ese
+// cuaderno. Con IA, las columnas se detectan de la foto, así que sirve para
+// cuadernos con otro formato (ver formato.js).
 // =============================================================================
 
 import * as store from './store.js';
+import { FORMATO_CUADERNO } from './config.js';
+import { formato, normalizarFormato, infoColumna, guardarFormato, ponerValor, textoValor, atributosEntrada, convertir } from './formato.js';
 import { abrirHoja, cerrarHoja, aviso, icon, confirmar } from './ui.js';
 import { esc, norm, plural, uid, telefonoInternacional, nombreMes, cuando } from './util.js';
 
@@ -228,23 +234,36 @@ function anioDe(lineas) {
 
 export function lineasAVentas(lineas) {
   const anio = anioDe(lineas);
-  return lineas.map((l) => lineaAVenta(l, anio)).filter(Boolean);
+  return lineas.map((l) => lineaAVenta(l, anio)).filter(Boolean).map(({ vehiculo, ...v }) => ({ ...v, vehiculoComprado: vehiculo }));
 }
 
 // --- Revisar antes de guardar ------------------------------------------------------------
 const celularOK = (t) => /^3\d{9}$/.test(String(t).replace(/\D/g, ''));
-// Rango normal del valor de un Nissan (fuera de eso, seguro se leyó mal)
+// Rango normal del valor de un vehículo (fuera de eso, seguro se leyó mal)
 const valorOK = (v) => v >= 30_000_000 && v <= 450_000_000;
 const fmt = (n) => (Number(n) ? Number(n).toLocaleString('es-CO') : '');
+// Campos que indican que la lista es de ventas (clientes que ya compraron)
+const CAMPOS_DE_VENTA = ['pedido', 'fechaCompra', 'precio', 'comision', 'vehiculoComprado', 'fechaPagoComision'];
+
+/** Columnas para una lista leída sin IA: las del formato + las que el lector encontró. */
+function columnasLeidas(filas) {
+  const cols = formato();
+  const ids = new Set(cols.map((c) => c.id));
+  const extra = FORMATO_CUADERNO.filter((c) => !ids.has(c.id) && filas.some((x) => x[c.id] !== '' && x[c.id] != null && x[c.id] !== 0));
+  return [...cols, ...extra.map(infoColumna)];
+}
+
+const columnasGuardables = (cols) => cols.map(({ id, titulo, tipo, propia }) => (propia ? { id, titulo, tipo } : { id, titulo }));
 
 /**
- * Guarda las ventas recién leídas como una "lista" y abre su tabla.
+ * Guarda las filas recién leídas como una "lista" y abre su tabla.
  * Toda lectura queda guardada (aunque se cierre la tabla), porque leer con IA cuesta.
- * @param {object[]} ventas resultado de lineasAVentas() o del lector con IA
- * @param {{ocr?:boolean, ia?:boolean, origen?:string, nombre?:string}} o
- *        ia: las leyó Claude (cada venta puede traer `dudas`: campos que no se entendieron bien)
+ * @param {object[]} filas una por cliente, con los valores por id de columna; `dudas`: ids que no se entendieron bien
+ * @param {{columnas?:object[], ocr?:boolean, ia?:boolean, origen?:string, nombre?:string}} o
+ *        columnas: las del cuaderno, en su orden (si no vienen, las del formato de la persona)
  */
-export function revisarVentas(ventas, { ocr = false, ia = false, origen = 'Importado del cuaderno', nombre = '' } = {}) {
+export function revisarVentas(filas, { columnas, ocr = false, ia = false, origen = 'Importado del cuaderno', nombre = '' } = {}) {
+  const cols = normalizarFormato(columnas || columnasLeidas(filas));
   const cp = store.ajustes().codigoPais;
   const telefonos = new Set(store.clientes().map((c) => telefonoInternacional(c.telefono, cp)).filter(Boolean));
   const pedidos = new Set(store.clientes().map((c) => String(c.pedido || '')).filter(Boolean));
@@ -252,63 +271,77 @@ export function revisarVentas(ventas, { ocr = false, ia = false, origen = 'Impor
     nombre: nombre || (/^Importado de /.test(origen) && origen !== 'Importado de una lista' ? origen.slice(13) : 'Lista escrita o pegada'),
     origen,
     fuente: ia ? 'ia' : ocr ? 'ocr' : 'texto',
-    filas: ventas.map((v) => {
-      const repetido = (v.telefono && telefonos.has(telefonoInternacional(v.telefono, cp))) || (v.pedido && pedidos.has(v.pedido));
-      return {
-        nombre: v.nombre || '', pedido: v.pedido || '', vehiculo: v.vehiculo || '', poliza: v.poliza || '',
-        cedula: v.cedula || '', telefono: v.telefono || '', precio: Number(v.precio) || 0, fechaCompra: v.fechaCompra || '',
-        comision: Number(v.comision) || 0, fechaPagoComision: v.fechaPagoComision || '', linea: v.linea || '',
-        dudasIA: v.dudas || [], editados: [], elegido: !repetido, pasada: false, repetido: !!repetido,
-      };
+    columnas: columnasGuardables(cols),
+    filas: filas.map((v) => {
+      const repetido = (v.telefono && telefonos.has(telefonoInternacional(v.telefono, cp))) || (v.pedido && pedidos.has(String(v.pedido)));
+      const fila = { linea: v.linea || '', dudasIA: v.dudas || [], editados: [], elegido: !repetido, pasada: false, repetido: !!repetido };
+      for (const c of cols) fila[c.id] = v[c.id] ?? (c.tipo === 'dinero' ? 0 : '');
+      return fila;
     }),
   });
   abrirLista(lista.id);
 }
 
 // Fecha corta "08 ENE"
-const mesDe = (iso) => (iso ? (nombreMes(Number(iso.slice(5, 7))) || '').slice(0, 3).toUpperCase() : '—');
-const fechaCuaderno = (iso) => (iso ? `${iso.slice(8, 10)} ${mesDe(iso)}` : '');
+const mesDe = (iso) => (/^\d{4}-\d{2}/.test(iso || '') ? (nombreMes(Number(iso.slice(5, 7))) || '').slice(0, 3).toUpperCase() : '—');
+const fechaCuaderno = (iso) => (/^\d{4}-\d{2}-\d{2}$/.test(iso || '') ? `${iso.slice(8, 10)} ${mesDe(iso)}` : esc(iso || ''));
 
-// Columnas, en el orden del cuaderno
-const COLS = [
-  { f: 'pedido', t: 'Pedido', ver: (x) => esc(x.pedido), editar: 'inputmode="numeric"', ancho: 'c-ped' },
-  { f: 'vehiculo', t: 'Vehículo', ver: (x) => esc(x.vehiculo), editar: 'list="dl-rv-modelos"', ancho: 'c-veh' },
-  { f: 'nombre', t: 'Nombre del cliente', ver: (x) => esc(x.nombre), editar: 'autocapitalize="words"', ancho: 'c-nom' },
-  { f: 'poliza', t: 'P', ver: (x) => (x.poliza === 'si' ? '✓' : x.poliza === 'no' ? 'X' : ''), ancho: 'c-pol' },
-  { f: 'cedula', t: 'Cédula', ver: (x) => esc(x.cedula), editar: 'inputmode="numeric"', ancho: 'c-ced' },
-  { f: 'telefono', t: 'Celular', ver: (x) => esc(x.telefono), editar: 'type="tel" inputmode="tel"', ancho: 'c-cel' },
-  { f: 'precio', t: '$ Venta', ver: (x) => (x.precio ? `$${fmt(x.precio)}` : ''), editar: 'inputmode="numeric" data-dinero', ancho: 'c-pes' },
-  { f: 'fechaCompra', t: 'Entrega', ver: (x) => fechaCuaderno(x.fechaCompra), editar: 'type="date"', ancho: 'c-fec' },
-  { f: 'comision', t: '$ Comi', ver: (x) => (x.comision ? `$${fmt(x.comision)}` : ''), editar: 'inputmode="numeric" data-dinero', ancho: 'c-pes' },
-  { f: 'fechaPagoComision', t: 'Pago comi', ver: (x) => fechaCuaderno(x.fechaPagoComision), editar: 'type="date"', ancho: 'c-fec' },
-];
+// Ancho de cada columna en la tabla
+const ANCHO = { pedido: 'c-ped', vehiculoComprado: 'c-veh', nombre: 'c-nom', cedula: 'c-ced', telefono: 'c-cel' };
+const anchoDe = (c) => ANCHO[c.id] || { sino: 'c-pol', dinero: 'c-pes', fecha: 'c-fec', cumple: 'c-fec', tel: 'c-cel', numero: 'c-ced' }[c.tipo] || 'c-txt';
+
+/** Columnas de una lista guardada, con sus datos completos (tipo, ancho…). */
+export function columnasDeLista(l) {
+  return normalizarFormato(l.columnas || FORMATO_CUADERNO).map((c) => ({ ...c, ancho: anchoDe(c) }));
+}
+
+/** Lo que se ve en una casilla de la tabla. */
+function verCelda(x, c) {
+  const v = x[c.id];
+  if (c.tipo === 'fecha') return fechaCuaderno(v);
+  if (c.tipo === 'cumple') return esc(/^\d{2}-\d{2}$/.test(v || '') ? `${v.slice(3)}/${v.slice(0, 2)}` : v || '');
+  return esc(textoValor(v, c, 'tabla'));
+}
 
 /** ¿Esta casilla está dudosa? (reglas + lo que marcó la IA, hasta que se corrija) */
 function dudosa(filas, x, campo) {
   if (x.pasada) return false;
-  const pedidoRepetido = !!x.pedido && filas.filter((y) => y.pedido === x.pedido).length > 1;
-  const regla = {
-    telefono: !celularOK(x.telefono),
-    precio: !valorOK(x.precio),
-    fechaCompra: !x.fechaCompra,
-    nombre: x.nombre.trim().split(/\s+/).length < 2,
-    pedido: (!!x.pedido && !/^\d{5}$/.test(x.pedido)) || pedidoRepetido,
-  }[campo] || false;
+  let regla = false;
+  if (campo === 'telefono') regla = !celularOK(x.telefono);
+  else if (campo === 'precio') regla = !!x.precio && !valorOK(x.precio);
+  else if (campo === 'fechaCompra') regla = !x.fechaCompra;
+  else if (campo === 'nombre') regla = String(x.nombre || '').trim().split(/\s+/).length < 2;
+  else if (campo === 'pedido' && x.pedido) {
+    // Todos los pedidos de la lista suelen tener la misma cantidad de dígitos
+    const largos = filas.map((y) => String(y.pedido || '').length).filter(Boolean);
+    const comun = largos.sort((a, b) => largos.filter((n) => n === b).length - largos.filter((n) => n === a).length)[0];
+    regla = !/^\d+$/.test(x.pedido) || (largos.length >= 3 && String(x.pedido).length !== comun)
+      || filas.filter((y) => y.pedido === x.pedido).length > 1;
+  }
   return regla || ((x.dudasIA || []).includes(campo) && !(x.editados || []).includes(campo));
 }
 
-/** Resumen de una lista: cuántas ventas, cuántas pasadas y cuántas casillas por revisar */
+/** Resumen de una lista: cuántas filas, cuántas pasadas y cuántas casillas por revisar */
 export function resumenLista(l) {
+  const cols = columnasDeLista(l);
   const pendientes = l.filas.filter((x) => !x.pasada);
-  const malas = pendientes.reduce((t, x) => t + (x.elegido ? COLS.filter((c) => dudosa(l.filas, x, c.f)).length : 0), 0);
+  const malas = pendientes.reduce((t, x) => t + (x.elegido ? cols.filter((c) => dudosa(l.filas, x, c.id)).length : 0), 0);
   return { total: l.filas.length, pasadas: l.filas.length - pendientes.length, pendientes: pendientes.length, malas };
 }
+
+/** Firma de unas columnas (para comparar formatos). */
+const firma = (cols) => cols.map((c) => c.id).join('|');
 
 /** Abre la tabla de una lista guardada para revisarla, editarla y pasarla a clientes. */
 export function abrirLista(id) {
   const l = store.lectura(id);
   if (!l) { aviso('Esa lista ya no existe', { icono: 'x' }); return; }
   const filas = structuredClone(l.filas);
+  const cols = columnasDeLista(l);
+  const conMes = cols.some((c) => c.id === 'fechaCompra');
+  const deVentas = cols.some((c) => CAMPOS_DE_VENTA.includes(c.id));
+  // ¿Proponer estas columnas como su formato? (solo si las leyó la IA y son distintas)
+  const proponer = l.fuente === 'ia' && firma(cols) !== firma(formato()) && store.ajustes().formatoDescartado !== firma(cols);
   let modo = 'ver'; // 'ver' | 'editar'
   let timer = null;
 
@@ -320,23 +353,26 @@ export function abrirLista(id) {
   };
   const guardarLuego = () => { clearTimeout(timer); timer = setTimeout(guardar, 700); };
 
-  const valorInput = (x, f) => (f === 'precio' || f === 'comision' ? fmt(x[f]) : x[f]);
+  const valorInput = (x, c) => (c.tipo === 'dinero' ? fmt(x[c.id]) : x[c.id] ?? '');
   const celda = (x, i, c) => {
-    const mala = dudosa(filas, x, c.f) ? 'duda' : '';
+    const mala = dudosa(filas, x, c.id) ? 'duda' : '';
     if (modo === 'ver' || x.pasada) {
-      return `<td class="${c.ancho} ${mala}" ${x.pasada ? '' : `data-celda="${i}:${c.f}"`}>${c.ver(x) || '<span class="vacia">—</span>'}</td>`;
+      return `<td class="${c.ancho} ${mala}" ${x.pasada ? '' : `data-celda="${i}:${c.id}"`}>${verCelda(x, c) || '<span class="vacia">—</span>'}</td>`;
     }
-    if (c.f === 'poliza') {
-      return `<td class="${c.ancho}"><select class="tc-input" data-i="${i}" data-f="poliza" aria-label="Póliza">
-        <option value="" ${!x.poliza ? 'selected' : ''}>—</option><option value="si" ${x.poliza === 'si' ? 'selected' : ''}>✓</option><option value="no" ${x.poliza === 'no' ? 'selected' : ''}>X</option></select></td>`;
+    if (c.tipo === 'sino') {
+      const v = x[c.id];
+      return `<td class="${c.ancho}"><select class="tc-input" data-i="${i}" data-f="${c.id}" aria-label="${esc(c.titulo)}">
+        <option value="" ${!v ? 'selected' : ''}>—</option><option value="si" ${v === 'si' ? 'selected' : ''}>✓</option><option value="no" ${v === 'no' ? 'selected' : ''}>X</option></select></td>`;
     }
-    return `<td class="${c.ancho}"><input class="tc-input ${mala}" data-i="${i}" data-f="${c.f}" value="${esc(valorInput(x, c.f))}" ${c.editar || ''} aria-label="${esc(c.t)}"></td>`;
+    const attrs = c.tipo === 'cumple' ? 'placeholder="dd/mm"' : atributosEntrada(c);
+    return `<td class="${c.ancho}"><input class="tc-input ${mala}" data-i="${i}" data-f="${c.id}" value="${esc(valorInput(x, c))}" ${attrs} aria-label="${esc(c.titulo)}"></td>`;
   };
 
   const pintarResumen = (el) => {
-    const r = resumenLista({ filas });
+    const r = resumenLista({ filas, columnas: l.columnas });
     const porPasar = filas.filter((x) => x.elegido && !x.pasada).length;
-    el.querySelector('[data-resumen]').innerHTML = `${plural(r.total, 'venta', 'ventas')}`
+    const cosa = deVentas ? ['venta', 'ventas'] : ['cliente', 'clientes'];
+    el.querySelector('[data-resumen]').innerHTML = `${plural(r.total, ...cosa)}`
       + `${r.pasadas ? ` · <span style="color:var(--c-green);font-weight:700">${r.pasadas} en clientes</span>` : ''}`
       + `${r.pendientes ? ` · <b>${porPasar}</b> por pasar` : ''}`
       + `${r.malas ? ` · <span style="color:var(--c-red);font-weight:700">${plural(r.malas, 'casilla por revisar', 'casillas por revisar')}</span>` : r.pendientes ? ' · todo se ve bien ✓' : ''}`;
@@ -353,15 +389,15 @@ export function abrirLista(id) {
     const tabla = el.querySelector('[data-tabla]');
     tabla.className = `tabla-cuaderno ${modo === 'editar' ? 'editando' : ''}`;
     tabla.innerHTML = `
-      <thead><tr><th class="c-chk" title="Pasar a clientes">✓</th><th class="c-mes">Mes</th>${COLS.map((c) => `<th class="${c.ancho}">${c.t}</th>`).join('')}</tr></thead>
+      <thead><tr><th class="c-chk" title="Pasar a clientes">✓</th>${conMes ? '<th class="c-mes">Mes</th>' : ''}${cols.map((c) => `<th class="${c.ancho}">${esc(c.titulo)}</th>`).join('')}</tr></thead>
       <tbody>
         ${filas.map((x, i) => `
           <tr class="${x.pasada ? 'pasada' : x.elegido ? '' : 'off'}" ${x.linea ? `title="Leí: ${esc(x.linea)}"` : ''}>
             <td class="c-chk">${x.pasada
               ? `<span class="en-clientes" title="Ya está en clientes">${icon('check', 'i-sm')}</span>`
-              : `<input type="checkbox" data-elegir="${i}" ${x.elegido ? 'checked' : ''} aria-label="Pasar esta venta a clientes">`}</td>
-            <td class="c-mes">${mesDe(x.fechaCompra)}${x.repetido && !x.pasada ? '<span class="ya-esta" title="Puede que ya esté en la app">●</span>' : ''}</td>
-            ${COLS.map((c) => celda(x, i, c)).join('')}
+              : `<input type="checkbox" data-elegir="${i}" ${x.elegido ? 'checked' : ''} aria-label="Pasar esta fila a clientes">`}</td>
+            ${conMes ? `<td class="c-mes">${mesDe(x.fechaCompra)}${x.repetido && !x.pasada ? '<span class="ya-esta" title="Puede que ya esté en la app">●</span>' : ''}</td>` : ''}
+            ${cols.map((c) => celda(x, i, c)).join('')}
           </tr>`).join('')}
       </tbody>`;
     pintarResumen(el);
@@ -377,20 +413,34 @@ export function abrirLista(id) {
     alta: true,
     ancha: true,
     cuerpo: `
-      ${l.fuente === 'ia' || l.fuente === 'ocr' ? `<div class="banner ${l.fuente === 'ia' ? 'info' : 'warn'}">${icon(l.fuente === 'ia' ? 'sparkles' : 'scan', 'i-lg')}<div><strong>${fuente}</strong>
+      ${proponer ? `<div class="banner ok formato-propuesta" data-propuesta>${icon('sparkles', 'i-lg')}<div><strong>Así anotas a tus clientes</strong>
+        Encontré estas columnas en tu cuaderno: <b>${cols.map((c) => esc(c.titulo)).join(' · ')}</b>.
+        ¿Quieres que la app use este formato? Al agregar un cliente te pedirá lo mismo y en el mismo orden.
+        <div class="hstack mt-8" style="flex-wrap:wrap"><button class="btn btn-primary btn-sm" type="button" data-usar-formato>${icon('check', 'i-sm')} Usar este formato</button><button class="btn btn-ghost btn-sm" type="button" data-no-formato>Ahora no</button></div></div></div>` : ''}
+      ${l.fuente === 'ia' || l.fuente === 'ocr' ? `<div class="banner ${l.fuente === 'ia' ? 'info' : 'warn'} ${proponer ? 'mt-12' : ''}">${icon(l.fuente === 'ia' ? 'sparkles' : 'scan', 'i-lg')}<div><strong>${fuente}</strong>
         Compara la tabla con tu cuaderno. Lo que está en <span style="color:var(--c-red);font-weight:700">rojo</span> no se entendía bien: tócalo para corregirlo. La lista se guarda sola; puedes seguir después en <b>Listas leídas</b>.</div></div>` : ''}
       <div class="hstack mt-12" style="flex-wrap:wrap">
         <span class="small muted spacer" data-resumen></span>
         <button class="btn btn-primary btn-sm" type="button" data-modo></button>
       </div>
       <div class="tabla-scroll mt-12"><table data-tabla></table></div>
-      <p class="small muted mt-8">Desliza la tabla hacia los lados para ver todas las columnas. Desmarca ✓ las ventas que no quieras pasar a clientes.</p>
-      <datalist id="dl-rv-modelos">${(store.ajustes().modelos || []).map((m) => `<option value="${esc(m)}">`).join('')}</datalist>`,
+      <p class="small muted mt-8">Desliza la tabla hacia los lados para ver todas las columnas. Desmarca ✓ las filas que no quieras pasar a clientes.</p>
+      <datalist id="dl-modelos">${(store.ajustes().modelos || []).map((m) => `<option value="${esc(m)}">`).join('')}</datalist>`,
     pie: `<button class="btn btn-outline" data-luego>${icon('download', 'i-sm')} Guardar<span class="solo-ancho">&nbsp;para después</span></button><button class="btn btn-primary" data-ok>Pasar a clientes</button>`,
     cerrar: () => guardar(),
     montar: (el) => {
       pintarTabla(el);
       const tabla = el.querySelector('[data-tabla]');
+
+      el.querySelector('[data-usar-formato]')?.addEventListener('click', () => {
+        guardarFormato(cols);
+        el.querySelector('[data-propuesta]').remove();
+        aviso('Listo. Ahora "Registrar venta" te pide estas columnas.', { ms: 6000 });
+      });
+      el.querySelector('[data-no-formato]')?.addEventListener('click', () => {
+        store.actualizarAjustes({ formatoDescartado: firma(cols) });
+        el.querySelector('[data-propuesta]').remove();
+      });
 
       el.querySelector('[data-modo]').addEventListener('click', () => {
         modo = modo === 'ver' ? 'editar' : 'ver';
@@ -407,18 +457,25 @@ export function abrirLista(id) {
       tabla.addEventListener('change', (e) => {
         const t = e.target;
         if (t.matches('[data-elegir]')) { filas[Number(t.dataset.elegir)].elegido = t.checked; pintarTabla(el); guardarLuego(); return; }
-        if (t.matches('select[data-f="poliza"]')) { filas[Number(t.dataset.i)].poliza = t.value; guardarLuego(); }
+        if (t.matches('select[data-f]')) {
+          const x = filas[Number(t.dataset.i)];
+          x[t.dataset.f] = t.value;
+          if (!x.editados.includes(t.dataset.f)) x.editados.push(t.dataset.f);
+          guardarLuego();
+        }
       });
       tabla.addEventListener('input', (e) => {
         const t = e.target;
         if (!t.matches('input.tc-input')) return;
         const i = Number(t.dataset.i), f = t.dataset.f;
         const x = filas[i];
+        const col = cols.find((c) => c.id === f);
         if (t.matches('[data-dinero]')) {
           const n = aPesos(t.value);
           t.value = n ? n.toLocaleString('es-CO') : '';
           x[f] = n;
-        } else x[f] = t.value.trim();
+        } else if (col?.tipo === 'cumple') x[f] = convertir(t.value, 'cumple') || t.value.trim();
+        else x[f] = t.value.trim();
         if (!x.editados.includes(f)) x.editados.push(f);
         t.classList.toggle('duda', dudosa(filas, x, f));
         if (f === 'pedido') filas.forEach((y, k) => el.querySelector(`[data-i="${k}"][data-f="pedido"]`)?.classList.toggle('duda', dudosa(filas, y, 'pedido')));
@@ -433,20 +490,22 @@ export function abrirLista(id) {
       });
       el.querySelector('[data-ok]').addEventListener('click', () => {
         const porPasar = filas.filter((x) => x.elegido && !x.pasada);
-        const sinNombre = porPasar.filter((x) => !x.nombre.trim()).length;
+        const sinNombre = porPasar.filter((x) => !String(x.nombre || '').trim()).length;
         if (sinNombre) {
-          aviso(`${plural(sinNombre, 'venta marcada no tiene', 'ventas marcadas no tienen')} nombre. Escríbelo o desmárcala.`, { icono: 'x', ms: 6000 });
+          aviso(`${plural(sinNombre, 'fila marcada no tiene', 'filas marcadas no tienen')} nombre. Escríbelo o desmárcala.`, { icono: 'x', ms: 6000 });
           if (modo !== 'editar') { modo = 'editar'; pintarTabla(el); }
           return;
         }
         const nuevos = porPasar.map((x) => {
           const c = store.nuevoCliente({
-            nombre: x.nombre.trim(), telefono: x.telefono, cedula: x.cedula, pedido: x.pedido,
-            etapa: 'vendido', vehiculoComprado: x.vehiculo, fechaCompra: x.fechaCompra,
-            precio: x.precio || '', comision: x.comision || '', fechaPagoComision: x.fechaPagoComision,
-            poliza: x.poliza,
+            etapa: deVentas ? 'vendido' : 'nuevo',
             historial: [{ id: uid('h_'), fecha: new Date().toISOString(), tipo: 'creado', texto: l.origen || 'Importado del cuaderno' }],
           });
+          for (const col of cols) {
+            const v = x[col.id];
+            if (v === undefined) continue;
+            ponerValor(c, col, col.tipo === 'dinero' ? Number(v) || '' : col.tipo === 'cumple' ? convertir(v, 'cumple') : typeof v === 'string' ? v.trim() : v);
+          }
           x.pasada = true;
           x.clienteId = c.id;
           return c;
@@ -455,7 +514,7 @@ export function abrirLista(id) {
         guardar();
         cerrarHoja();
         const sinCel = nuevos.filter((c) => !celularOK(c.telefono)).length;
-        aviso(`${plural(nuevos.length, 'venta pasada', 'ventas pasadas')} a clientes${sinCel ? ` · ${sinCel} sin celular válido (corrígelo en su ficha)` : ''}`, { ms: 6000 });
+        aviso(`${plural(nuevos.length, deVentas ? 'venta pasada' : 'cliente pasado', deVentas ? 'ventas pasadas' : 'clientes pasados')} a clientes${sinCel ? ` · ${sinCel} sin celular válido (corrígelo en su ficha)` : ''}`, { ms: 6000 });
       });
     },
   });
@@ -475,7 +534,7 @@ export function abrirListas() {
           <span class="icon-badge" data-color="${l.fuente === 'ia' ? 'violet' : 'gray'}">${icon(l.fuente === 'ia' ? 'sparkles' : 'sheet')}</span>
           <button class="li-body lista-abrir" type="button" data-abrir="${l.id}">
             <b class="una-linea">${esc(l.nombre || 'Lista del cuaderno')}</b>
-            <span class="small muted">${esc(cuando(l.creado))} · ${plural(r.total, 'venta', 'ventas')}${r.malas ? ` · <span style="color:var(--c-red)">${plural(r.malas, 'casilla por revisar', 'casillas por revisar')}</span>` : ''}</span>
+            <span class="small muted">${esc(cuando(l.creado))} · ${plural(r.total, 'fila', 'filas')}${r.malas ? ` · <span style="color:var(--c-red)">${plural(r.malas, 'casilla por revisar', 'casillas por revisar')}</span>` : ''}</span>
           </button>
           <div class="row-actions">${estado}<button class="btn btn-ghost btn-icon btn-sm" type="button" data-borrar="${l.id}" aria-label="Eliminar lista">${icon('trash', 'i-sm')}</button></div>
         </div>`;
@@ -485,7 +544,7 @@ export function abrirListas() {
       const l = store.lectura(b.dataset.borrar);
       const ok = await confirmar({
         titulo: '¿Eliminar esta lista?',
-        texto: 'Se borra solo la lista. Las ventas que ya pasaste a clientes se quedan.',
+        texto: 'Se borra solo la lista. Los clientes que ya pasaste se quedan.',
         si: 'Eliminar lista', peligro: true,
       });
       if (ok && l) { store.eliminarLectura(l.id); aviso('Lista eliminada', { icono: 'trash' }); abrirListas(); }
@@ -501,12 +560,6 @@ export function abrirListas() {
     montar: (el) => pintar(el),
   });
 }
-
-// --- Plantilla de Excel con las columnas del cuaderno -----------------------------------
-export const COLUMNAS_CUADERNO = [
-  'Pedido', 'Vehículo', 'Nombre del cliente', 'Póliza (✓ o X)', 'Cédula', 'Celular',
-  'Valor venta', 'Fecha de entrega', 'Comisión', 'Fecha pago comisión',
-];
 
 /** "MARIBEL MARTINEZ TORRES" → "Maribel Martinez Torres" (solo si viene todo en mayúsculas). */
 export function nombreBonito(t) {
