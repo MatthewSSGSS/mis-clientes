@@ -247,9 +247,13 @@ export function revisarVentas(ventas, { ocr = false, ia = false, origen = 'Impor
   const cp = store.ajustes().codigoPais;
   const telefonos = new Set(store.clientes().map((c) => telefonoInternacional(c.telefono, cp)).filter(Boolean));
   const pedidos = new Set(store.clientes().map((c) => String(c.pedido || '')).filter(Boolean));
+  // Un mismo pedido leído en dos ventas de la hoja: seguro uno está mal → en rojo
+  const vecesPedido = {};
+  for (const v of ventas) if (v.pedido) vecesPedido[v.pedido] = (vecesPedido[v.pedido] || 0) + 1;
   const filas = ventas.map((v) => {
     const repetido = (v.telefono && telefonos.has(telefonoInternacional(v.telefono, cp))) || (v.pedido && pedidos.has(v.pedido));
-    return { ...v, repetido, elegido: !repetido };
+    const dudas = [...(v.dudas || []), ...(vecesPedido[v.pedido] > 1 ? ['pedido'] : [])];
+    return { ...v, dudas, repetido, elegido: !repetido };
   });
   const modelos = store.ajustes().modelos || [];
   const campo = (f, nombre, valor, extra = '') =>
