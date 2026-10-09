@@ -28,7 +28,9 @@ const responder = (cuerpo: unknown, status = 200) =>
 
 const VAPID_PUBLICA = Deno.env.get('VAPID_PUBLIC_KEY') ?? '';
 const VAPID_PRIVADA = Deno.env.get('VAPID_PRIVATE_KEY') ?? '';
-const VAPID_SUJETO = Deno.env.get('VAPID_SUBJECT') ?? 'mailto:avisos@example.com';
+const VAPID_SUJETO = (Deno.env.get('VAPID_SUBJECT') ?? '').trim();
+// Apple exige "mailto:correo@real.com" (sin espacios ni <>) o una URL https
+const SUJETO_OK = /^mailto:[^\s<>@]+@[^\s<>@]+\.[a-z]{2,}$/i.test(VAPID_SUJETO) || /^https:\/\/[^\s]+$/i.test(VAPID_SUJETO);
 const CRON_SECRET = Deno.env.get('CRON_SECRET') ?? '';
 
 // --- base64url --------------------------------------------------------------------
@@ -62,39 +64,43 @@ async function jwtVapid(audiencia: string): Promise<string> {
   const enc = new TextEncoder();
   const cabecera = aB64u(enc.encode(JSON.stringify({ typ: 'JWT', alg: 'ES256' })));
   const datos = aB64u(enc.encode(JSON.stringify({
-    aud: audiencia, exp: Math.floor(Date.now() / 1000) + 12 * 3600, sub: VAPID_SUJETO,
+    aud: audiencia, exp: Math.floor(Date.now() / 1000) + 3600, sub: VAPID_SUJETO,
   })));
   const firma = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, await obtenerClave(), enc.encode(`${cabecera}.${datos}`));
   return `${cabecera}.${datos}.${aB64u(new Uint8Array(firma))}`;
 }
 
-/** Envía un push vacío. Devuelve el código HTTP del servicio de push. */
-async function enviarPush(endpoint: string): Promise<number> {
+/** Envía un push vacío. Devuelve el código HTTP del servicio de push y su explicación. */
+async function enviarPush(endpoint: string): Promise<{ status: number; razon: string }> {
   const jwt = await jwtVapid(new URL(endpoint).origin);
   const res = await fetch(endpoint, {
     method: 'POST',
     headers: { TTL: '86400', Urgency: 'high', Authorization: `vapid t=${jwt}, k=${VAPID_PUBLICA}` },
   });
-  await res.body?.cancel();
-  return res.status;
+  // Si lo rechazan, Apple y Google explican por qué (ej. {"reason":"BadJwtToken"})
+  const razon = res.ok ? '' : (await res.text().catch(() => '')).slice(0, 200);
+  if (res.ok) await res.body?.cancel();
+  return { status: res.status, razon };
 }
 
 // deno-lint-ignore no-explicit-any
 async function enviarAUsuario(admin: any, userId: string) {
   const { data: subs } = await admin.from('suscripciones_push').select('endpoint').eq('user_id', userId);
   let enviados = 0, fallidos = 0;
+  const errores: { servicio: string; status: number; razon: string }[] = [];
   for (const s of subs ?? []) {
+    const servicio = new URL(s.endpoint).host; // web.push.apple.com, fcm.googleapis.com…
     try {
-      const status = await enviarPush(s.endpoint);
+      const { status, razon } = await enviarPush(s.endpoint);
       if (status === 404 || status === 410) {
         await admin.from('suscripciones_push').delete().eq('endpoint', s.endpoint); // equipo dado de baja
       } else if (status >= 200 && status < 300) enviados++;
-      else { fallidos++; console.error('push', status, s.endpoint.slice(0, 60)); }
+      else { fallidos++; errores.push({ servicio, status, razon }); console.error('push', status, servicio, razon); }
     } catch (e) {
-      fallidos++; console.error('push error', e);
+      fallidos++; errores.push({ servicio, status: 0, razon: String(e).slice(0, 200) }); console.error('push error', e);
     }
   }
-  return { enviados, fallidos, total: subs?.length ?? 0 };
+  return { enviados, fallidos, total: subs?.length ?? 0, errores, sujetoOk: SUJETO_OK };
 }
 
 Deno.serve(async (req) => {

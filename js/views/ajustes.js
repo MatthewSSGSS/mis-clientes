@@ -309,6 +309,24 @@ function conectarCuenta(root) {
   root.querySelector('[data-cambiar-clave]')?.addEventListener('click', () => pedirNuevaContrasena({ titulo: 'Cambiar contraseña' }));
 }
 
+/** Apple o Google rechazaron la notificación: mostrar el motivo exacto (para quien administra la app). */
+function explicarRechazo(r) {
+  const e = (r.errores || [])[0] || {};
+  const servicio = /apple/.test(e.servicio || '') ? 'Apple' : /google|fcm/.test(e.servicio || '') ? 'Google' : (e.servicio || 'El servicio de notificaciones');
+  const motivo = (() => { try { return JSON.parse(e.razon).reason || e.razon; } catch { return e.razon || ''; } })();
+  abrirHoja({
+    titulo: 'No se pudo enviar la prueba',
+    cuerpo: `
+      <p>${esc(servicio)} no aceptó la notificación.${r.sujetoOk === false ? ' <b>El correo de contacto del servidor (VAPID_SUBJECT) no tiene el formato que pide Apple.</b>' : ''}</p>
+      <p class="small muted mt-12">Toma una captura de esta ventana y envíasela a quien administra la app. Con esto sabe qué arreglar:</p>
+      <div class="card card-pad mt-8" style="font-family:ui-monospace,monospace;font-size:13px;word-break:break-word">
+        ${esc(servicio)} · código ${esc(String(e.status ?? '?'))}${motivo ? ` · ${esc(motivo)}` : ''}${r.sujetoOk === false ? '<br>VAPID_SUBJECT inválido' : ''}
+      </div>`,
+    pie: '<button class="btn btn-primary" data-ok>Entendido</button>',
+    montar: (el) => el.querySelector('[data-ok]').addEventListener('click', () => cerrarHoja()),
+  });
+}
+
 // --- Notificaciones push ------------------------------------------------------------
 async function pintarFilaPush(root) {
   const fila = root.querySelector('[data-push-fila]');
@@ -385,9 +403,9 @@ async function pintarFilaPush(root) {
         await nube.reactivarPush();
         r = await nube.probarPush();
       }
+      if (r?.fallidos) { explicarRechazo(r); return; }
       aviso(r?.enviados ? 'Enviada. Debería llegarte en unos segundos.'
-        : r?.fallidos ? 'Apple o Google no aceptaron la notificación en este momento. Intenta de nuevo en unos minutos.'
-          : 'No se pudo registrar este equipo. Toca "Desactivar" y vuelve a activar las notificaciones.',
+        : 'No se pudo registrar este equipo. Toca "Desactivar" y vuelve a activar las notificaciones.',
       { icono: r?.enviados ? 'bell' : 'x', ms: 7000 });
     } catch (err) {
       aviso(`No se pudo enviar la prueba: ${nube.traducirError(err)} (${String(err?.message || err).slice(0, 80)})`, { icono: 'x', ms: 9000 });
