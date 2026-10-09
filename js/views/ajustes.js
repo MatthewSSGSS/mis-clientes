@@ -378,8 +378,17 @@ async function pintarFilaPush(root) {
     const boton = e.currentTarget; // después de un await, e.currentTarget ya no existe
     boton.disabled = true;
     try {
-      const r = await nube.probarPush();
-      aviso(r?.enviados ? 'Enviada. Debería llegarte en unos segundos.' : 'El servidor no encontró este equipo. Desactiva y vuelve a activar.', { icono: r?.enviados ? 'bell' : 'x', ms: 6000 });
+      let r = await nube.probarPush();
+      // El servidor no tenía este equipo (o la suscripción venció): registrarlo de nuevo y reintentar
+      if (!r?.enviados && !r?.fallidos) {
+        aviso('Volviendo a registrar este equipo…', { icono: 'clock' });
+        await nube.reactivarPush();
+        r = await nube.probarPush();
+      }
+      aviso(r?.enviados ? 'Enviada. Debería llegarte en unos segundos.'
+        : r?.fallidos ? 'Apple o Google no aceptaron la notificación en este momento. Intenta de nuevo en unos minutos.'
+          : 'No se pudo registrar este equipo. Toca "Desactivar" y vuelve a activar las notificaciones.',
+      { icono: r?.enviados ? 'bell' : 'x', ms: 7000 });
     } catch (err) {
       aviso(`No se pudo enviar la prueba: ${nube.traducirError(err)} (${String(err?.message || err).slice(0, 80)})`, { icono: 'x', ms: 9000 });
     }

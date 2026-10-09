@@ -407,6 +407,17 @@ export async function activarPush({ pedirPermiso = true } = {}) {
   programarSubida(200); // subir los momentos de aviso
 }
 
+/**
+ * Registra este equipo de nuevo con una suscripción nueva. Sirve cuando el servidor
+ * ya no lo tiene (Apple o Google dieron de baja la anterior, o quedó en otra cuenta).
+ */
+export async function reactivarPush() {
+  const reg = await navigator.serviceWorker?.getRegistration();
+  const sub = await reg?.pushManager.getSubscription();
+  await sub?.unsubscribe().catch(() => {});
+  await activarPush({ pedirPermiso: false });
+}
+
 export async function desactivarPush() {
   const reg = await navigator.serviceWorker?.getRegistration();
   const sub = await reg?.pushManager.getSubscription();
