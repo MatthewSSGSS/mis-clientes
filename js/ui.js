@@ -49,16 +49,17 @@ let focoAnterior = null;
  * @param {string} o.cuerpo   HTML del contenido
  * @param {string} [o.pie]    HTML de los botones de abajo
  * @param {boolean} [o.alta]  Ocupa casi toda la pantalla
+ * @param {boolean} [o.ancha] Más ancha en computador (para tablas)
  * @param {(el:HTMLElement)=>void} [o.montar] Para conectar eventos
  * @param {()=>void} [o.cerrar] Se llama al cerrar
  */
-export function abrirHoja({ titulo, cuerpo, pie = '', alta = false, montar, cerrar }) {
+export function abrirHoja({ titulo, cuerpo, pie = '', alta = false, ancha = false, montar, cerrar }) {
   const el = $sheet();
   const yaAbierta = !el.hidden;
   if (yaAbierta && alCerrar) { const f = alCerrar; alCerrar = null; f(); }
   if (!yaAbierta) focoAnterior = document.activeElement;
 
-  el.className = 'sheet' + (alta ? ' tall' : '');
+  el.className = 'sheet' + (alta ? ' tall' : '') + (ancha ? ' ancha' : '');
   el.setAttribute('aria-label', titulo);
   el.innerHTML = `
     <div class="sheet-grip"></div>
