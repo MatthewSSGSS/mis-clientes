@@ -23,7 +23,7 @@ export const CLAVE_LOCAL = 'misclientes:datos';
 export const claveCuenta = (idUsuario) => `misclientes:cuenta:${idUsuario}`;
 let CLAVE = CLAVE_LOCAL;
 
-export const SCHEMA = 6;
+export const SCHEMA = 7;
 const MAX_ENVIOS = 5000; // historial global de envíos que se conserva
 const DIAS_BORRADOS = 90; // cuánto se recuerda que algo se borró (para sincronizar)
 
@@ -74,6 +74,11 @@ const MIGRACIONES = {
     }
     return d;
   },
+  // 2.6.0: banco y monto del crédito
+  7: (d) => {
+    (Array.isArray(d.clientes) ? d.clientes : []).forEach(completarCliente);
+    return d;
+  },
 };
 
 /** Las listas leídas antes de 2.5.0 tenían columnas fijas: se les ponen las del cuaderno. */
@@ -97,6 +102,8 @@ function completarCliente(c) {
   c.formaPago ??= '';
   c.retoma ??= '';
   c.documentos = Array.isArray(c.documentos) ? c.documentos : [];
+  c.banco ??= '';             // banco o financiera del crédito / leasing
+  c.montoCredito ??= '';
   // Venta (como en el cuaderno): precio = valor de venta, fechaCompra = fecha de entrega
   c.pedido ??= '';
   c.cedula ??= '';
@@ -272,7 +279,7 @@ export function nuevoCliente(campos = {}) {
     nombre: '', telefono: '', email: '', cumple: '',
     etapa: 'nuevo', origen: '', vehiculoInteres: '', vehiculoComprado: '', fechaCompra: '',
     proximoSeguimiento: '', notas: '', historial: [],
-    version: '', color: '', precio: '', formaPago: '', retoma: '', documentos: [],
+    version: '', color: '', precio: '', formaPago: '', banco: '', montoCredito: '', retoma: '', documentos: [],
     pedido: '', cedula: '', poliza: '', comision: '', fechaPagoComision: '', extras: {},
     creado: ahora(), actualizado: ahora(),
     ...campos,

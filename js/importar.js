@@ -454,6 +454,8 @@ export async function exportarExcel() {
     Color: c.color || '',
     'Precio cotizado': c.etapa === 'vendido' ? '' : Number(c.precio) || '',
     'Forma de pago': ({ contado: 'Contado', credito: 'Crédito', leasing: 'Leasing' })[c.formaPago] || '',
+    Banco: c.banco || '',
+    'Monto del crédito': Number(c.montoCredito) || '',
     Retoma: c.retoma || '',
     'Documentos pendientes': (c.documentos || []).filter((d) => !d.listo).map((d) => d.nombre).join(', '),
     Notas: c.notas,

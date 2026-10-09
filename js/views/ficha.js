@@ -267,6 +267,7 @@ function seccionVenta(c) {
           ${c.poliza ? `<span class="pill" data-color="${c.poliza === 'si' ? 'green' : 'gray'}">${c.poliza === 'si' ? `${esc(polizaTxt)} ✓` : `Sin ${esc(polizaTxt.toLowerCase())}`}</span>` : ''}
         </div>
         <div class="venta-grid">
+          ${filasPago(c, fila)}
           ${enGrilla.map((col) => {
             const v = col.id === 'vehiculoComprado' ? c.vehiculoComprado || c.vehiculoInteres : valorDe(c, col);
             const extra = col.id === 'fechaPagoComision' && c.fechaPagoComision
@@ -278,9 +279,20 @@ function seccionVenta(c) {
     </section>`;
 }
 
+/** Forma de pago, banco y monto del crédito (en la tarjeta de la venta). */
+function filasPago(c, fila) {
+  const pago = FORMAS_PAGO.find((p) => p.id === c.formaPago)?.nombre;
+  if (!pago) return '';
+  return [
+    fila('Forma de pago', esc(pago)),
+    c.banco ? fila('Banco', esc(c.banco)) : '',
+    c.montoCredito ? fila('Monto del crédito', esc(dinero(c.montoCredito))) : '',
+  ].join('');
+}
+
 // --- Negociación y documentos del crédito -----------------------------------------
 function seccionNegociacion(c) {
-  const hayDatos = c.version || c.color || c.precio || c.formaPago || c.retoma;
+  const hayDatos = c.version || c.color || c.precio || c.formaPago || c.retoma || c.banco;
   const pago = FORMAS_PAGO.find((p) => p.id === c.formaPago)?.nombre;
   const docs = c.documentos || [];
   const listos = docs.filter((d) => d.listo).length;
@@ -297,6 +309,8 @@ function seccionNegociacion(c) {
         ${[
           ['car', 'Vehículo', [c.vehiculoInteres || c.vehiculoComprado, c.version].filter(Boolean).join(' · ')],
           ['sparkles', 'Color', c.color],
+          ['shield', 'Banco', c.banco],
+          ['tag', 'Monto del crédito', c.montoCredito ? dinero(c.montoCredito) : ''],
           ['repeat', 'Retoma', c.retoma],
         ].filter(([, , v]) => v).map(([ic, k, v]) => `<div class="neg-item">${icon(ic, 'i-sm')}<div><span class="kv-k">${k}</span><span class="kv-v">${esc(v)}</span></div></div>`).join('')}
       </div>

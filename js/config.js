@@ -4,7 +4,7 @@
 // este es el archivo. Cada vez que publiques cambios, sube APP_VERSION.
 // =============================================================================
 
-export const APP_VERSION = '2.5.0';
+export const APP_VERSION = '2.6.0';
 
 // Nube (Supabase): cuentas, sincronización y notificaciones.
 // La URL y la clave "publishable" son públicas: está bien que vayan aquí.
@@ -58,6 +58,13 @@ export const FORMAS_PAGO = [
   { id: 'contado', nombre: 'Contado' },
   { id: 'credito', nombre: 'Crédito' },
   { id: 'leasing', nombre: 'Leasing' },
+];
+
+// Bancos y financieras sugeridos al escribir el banco del crédito (se puede escribir otro)
+export const BANCOS = [
+  'Bancolombia', 'Banco de Bogotá', 'Davivienda', 'BBVA', 'Banco de Occidente', 'Banco Popular', 'Banco AV Villas',
+  'Banco Caja Social', 'Scotiabank Colpatria', 'Itaú', 'Banco Finandina', 'Banco Pichincha', 'Banco GNB Sudameris',
+  'Banco Falabella', 'Banco Serfinanza', 'Banco Agrario', 'RCI Colombia',
 ];
 
 // Documentos que se piden para un crédito (se pueden agregar más en cada cliente)

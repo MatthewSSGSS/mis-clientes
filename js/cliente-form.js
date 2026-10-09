@@ -9,7 +9,7 @@
 // =============================================================================
 
 import * as store from './store.js';
-import { ETAPAS, ORIGENES, FORMAS_PAGO, DOCUMENTOS_CREDITO } from './config.js';
+import { ETAPAS, ORIGENES, FORMAS_PAGO, DOCUMENTOS_CREDITO, BANCOS } from './config.js';
 import { formato, valorDe, ponerValor, atributosEntrada, ejemplo } from './formato.js';
 import { abrirHoja, cerrarHoja, aviso, icon } from './ui.js';
 import { esc, hoy, sumarDias, nombreMes, diasDelMes, norm, telefonoInternacional } from './util.js';
@@ -79,6 +79,8 @@ export function abrirFormularioCliente(id, { alGuardar, campos, negociacion = fa
     : store.nuevoCliente(venta ? { etapa: 'vendido', fechaCompra: hoy(), ...campos } : { proximoSeguimiento: sumarDias(hoy(), 2), ...campos });
   const vendido = c.etapa === 'vendido';
   const modelos = store.ajustes().modelos || [];
+  // Bancos sugeridos: los de la lista y los que ya escribió en otros clientes
+  const bancos = [...new Set([...BANCOS, ...store.clientes().map((x) => (x.banco || '').trim()).filter(Boolean)])];
 
   const cols = formato();
   const colNombre = cols.find((x) => x.id === 'nombre');
@@ -116,6 +118,24 @@ export function abrirFormularioCliente(id, { alGuardar, campos, negociacion = fa
           <div class="form-grid">${otras.map((col) => campoFormato(col, c, vendido)).join('')}</div>
         </div>` : ''}
 
+        <div class="field">
+          <span class="label">Forma de pago</span>
+          <div class="chips chips-wrap" data-pagos>
+            ${FORMAS_PAGO.map((p) => `<button type="button" class="chip" data-pago="${p.id}" aria-pressed="${c.formaPago === p.id}">${esc(p.nombre)}</button>`).join('')}
+          </div>
+          <div class="row mt-8" data-financiado ${['credito', 'leasing'].includes(c.formaPago) ? '' : 'hidden'}>
+            <div class="field">
+              <label for="f-banco">Banco o financiera</label>
+              <input id="f-banco" class="input" name="banco" list="dl-bancos" value="${esc(c.banco)}" placeholder="Ej: Bancolombia" autocapitalize="words">
+            </div>
+            <div class="field">
+              <label for="f-monto">Monto del crédito</label>
+              <input id="f-monto" class="input" name="montoCredito" inputmode="numeric" value="${esc(pesos(c.montoCredito))}" placeholder="Ej: 60.000.000" data-dinero>
+            </div>
+          </div>
+          <span class="hint" data-hint-credito ${c.formaPago === 'credito' && !vendido ? '' : 'hidden'}>En la ficha tendrás la lista de documentos del crédito.</span>
+        </div>
+
         <div class="field" data-solo-proceso ${vendido ? 'hidden' : ''}>
           <label for="f-veh">Vehículo de interés</label>
           <input id="f-veh" class="input" name="vehiculoInteres" list="dl-modelos" value="${esc(c.vehiculoInteres)}" placeholder="Ej: Kicks">
@@ -131,8 +151,8 @@ export function abrirFormularioCliente(id, { alGuardar, campos, negociacion = fa
           <span class="hint">Ese día te aparecerá en "Inicio" para escribirle.</span>
         </div>
 
-        <details class="form-extra" data-negociacion ${vendido ? 'hidden' : ''} ${negociacion || (!vendido && (c.precio || c.formaPago || c.version)) ? 'open' : ''}>
-          <summary>${icon('tag', 'i-sm')} Negociación <span class="muted small">versión, precio, forma de pago, retoma</span></summary>
+        <details class="form-extra" data-negociacion ${vendido ? 'hidden' : ''} ${negociacion || (!vendido && (c.precio || c.version || c.retoma)) ? 'open' : ''}>
+          <summary>${icon('tag', 'i-sm')} Negociación <span class="muted small">versión, color, precio, retoma</span></summary>
           <div class="row">
             <div class="field">
               <label for="f-version">Versión</label>
@@ -146,13 +166,6 @@ export function abrirFormularioCliente(id, { alGuardar, campos, negociacion = fa
           <div class="field">
             <label for="f-precio-cot">Precio cotizado</label>
             <input id="f-precio-cot" class="input" name="precioCotizado" inputmode="numeric" value="${esc(pesos(c.precio))}" placeholder="Ej: 109.990.000" data-dinero>
-          </div>
-          <div class="field">
-            <span class="label">Forma de pago</span>
-            <div class="chips chips-wrap" data-pagos>
-              ${FORMAS_PAGO.map((p) => `<button type="button" class="chip" data-pago="${p.id}" aria-pressed="${c.formaPago === p.id}">${esc(p.nombre)}</button>`).join('')}
-            </div>
-            <span class="hint" data-hint-credito ${c.formaPago === 'credito' ? '' : 'hidden'}>En la ficha tendrás la lista de documentos del crédito.</span>
           </div>
           <div class="field">
             <label class="hstack" style="cursor:pointer">
@@ -185,6 +198,7 @@ export function abrirFormularioCliente(id, { alGuardar, campos, negociacion = fa
           </div>`}
         </details>
         <datalist id="dl-modelos">${modelos.map((m) => `<option value="${esc(m)}">`).join('')}</datalist>
+        <datalist id="dl-bancos">${bancos.map((b) => `<option value="${esc(b)}">`).join('')}</datalist>
       </form>`,
     pie: `
       <button class="btn btn-outline" type="button" data-cancelar>Cancelar</button>
@@ -205,6 +219,7 @@ export function abrirFormularioCliente(id, { alGuardar, campos, negociacion = fa
         el.querySelectorAll('[data-solo-venta]').forEach((x) => { x.hidden = !v; });
         el.querySelectorAll('[data-solo-proceso]').forEach((x) => { x.hidden = v; });
         $('[data-negociacion]').hidden = v;
+        $('[data-hint-credito]').hidden = formaPago !== 'credito' || v;
         const caja = $('[data-caja]');
         if (caja) { caja.hidden = !v && !hayDeProceso; $('[data-caja-tit]').textContent = v ? 'Datos de la venta' : 'Datos del cliente'; }
         if (v) {
@@ -237,7 +252,9 @@ export function abrirFormularioCliente(id, { alGuardar, campos, negociacion = fa
       el.querySelectorAll('[data-pago]').forEach((b) => b.addEventListener('click', () => {
         formaPago = formaPago === b.dataset.pago ? '' : b.dataset.pago; // tocar de nuevo la quita
         el.querySelectorAll('[data-pago]').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.pago === formaPago)));
-        $('[data-hint-credito]').hidden = formaPago !== 'credito';
+        $('[data-hint-credito]').hidden = formaPago !== 'credito' || etapa === 'vendido';
+        $('[data-financiado]').hidden = !['credito', 'leasing'].includes(formaPago);
+        if (!$('[data-financiado]').hidden && !f.banco.value) f.banco.focus();
       }));
       const tieneRetoma = $('[data-tiene-retoma]');
       tieneRetoma.addEventListener('change', () => {
@@ -295,6 +312,9 @@ export function abrirFormularioCliente(id, { alGuardar, campos, negociacion = fa
           version: f.version.value.trim(),
           color: f.color.value.trim(),
           formaPago,
+          // Banco y monto solo si es crédito o leasing
+          banco: ['credito', 'leasing'].includes(formaPago) ? f.banco.value.trim().replace(/\s+/g, ' ') : '',
+          montoCredito: ['credito', 'leasing'].includes(formaPago) ? Number(f.montoCredito.value.replace(/\D/g, '')) || '' : '',
           retoma: tieneRetoma.checked ? (f.retoma.value.trim() || 'Sí') : '',
         });
         if (!enFormato.has('cumple')) c.cumple = leerCumple('cumple');
@@ -306,7 +326,7 @@ export function abrirFormularioCliente(id, { alGuardar, campos, negociacion = fa
         if (etapa === 'vendido' && !c.vehiculoComprado && !enFormato.has('vehiculoComprado')) c.vehiculoComprado = c.vehiculoInteres;
 
         // Al elegir crédito, se arma la lista de documentos
-        if (formaPago === 'credito' && !c.documentos?.length) {
+        if (formaPago === 'credito' && etapa !== 'vendido' && !c.documentos?.length) {
           c.documentos = DOCUMENTOS_CREDITO.map((nombre, i) => ({ id: `doc_${Date.now().toString(36)}_${i}`, nombre, listo: false }));
         }
         if (existente && etapaAnterior !== etapa) {

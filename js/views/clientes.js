@@ -27,7 +27,8 @@ let orden = 'reciente';
 let limite = POR_PAGINA;
 let anio = 'todos';
 let mes = 'todos';
-let filtros = { poliza: '', vehiculo: '', comision: '', origen: '', incompletos: false };
+const SIN_FILTROS = { poliza: '', vehiculo: '', comision: '', banco: '', origen: '', incompletos: false };
+let filtros = { ...SIN_FILTROS };
 
 // --- Datos de cada cliente para organizar ------------------------------------------
 /** Fecha con que se organiza: entrega si ya compró; si no, cuándo se registró. */
@@ -59,6 +60,7 @@ const FILTROS = {
   poliza: { nombre: 'Póliza', opciones: [['si', 'La tomó ✓'], ['no', 'No la tomó ✗'], ['sin', 'Sin dato']], de: (c) => c.poliza || 'sin', hay: (l) => l.some((c) => c.poliza) },
   comision: { nombre: 'Comisión', opciones: [['pendiente', 'Pendiente'], ['pagada', 'Ya pagada']], de: estadoComision, hay: (l) => l.some((c) => estadoComision(c)) },
   vehiculo: { nombre: 'Vehículo', de: familia, hay: (l) => l.some((c) => familia(c)) },
+  banco: { nombre: 'Banco del crédito', de: (c) => (c.banco || '').trim(), hay: (l) => l.some((c) => c.banco) },
   origen: { nombre: '¿Cómo llegó?', de: (c) => c.origen, hay: (l) => l.some((c) => c.origen) },
 };
 const nFiltros = () => Object.entries(filtros).filter(([, v]) => v).length;
@@ -73,7 +75,7 @@ function base(etapa) {
     lista = lista.filter((c) =>
       norm(c.nombre).includes(q) ||
       norm(c.vehiculoInteres).includes(q) || norm(c.vehiculoComprado).includes(q) ||
-      norm(c.email).includes(q) || norm(c.notas).includes(q) ||
+      norm(c.email).includes(q) || norm(c.notas).includes(q) || norm(c.banco).includes(q) ||
       Object.values(c.extras || {}).some((v) => norm(v).includes(q)) ||
       (qDig.length >= 3 && [c.telefono, c.cedula, c.pedido].some((x) => String(x || '').replace(/\D/g, '').includes(qDig))));
   }
@@ -241,7 +243,7 @@ function abrirFiltros(etapa, pintar) {
       pintarCuerpo(el);
       el.querySelector('[data-ver]').addEventListener('click', () => cerrarHoja());
       el.querySelector('[data-limpiar]').addEventListener('click', () => {
-        filtros = { poliza: '', vehiculo: '', comision: '', origen: '', incompletos: false };
+        filtros = { ...SIN_FILTROS };
         pintar(); pintarCuerpo(el);
       });
     },
@@ -272,7 +274,7 @@ function pintarLista(el, etapa, pintar) {
       accion: hayFiltros ? '<button class="btn btn-outline" data-limpiar>Quitar filtros</button>' : '',
     });
     el.querySelector('[data-limpiar]')?.addEventListener('click', () => {
-      filtros = { poliza: '', vehiculo: '', comision: '', origen: '', incompletos: false }; anio = 'todos'; mes = 'todos'; pintar();
+      filtros = { ...SIN_FILTROS }; anio = 'todos'; mes = 'todos'; pintar();
     });
     return;
   }
