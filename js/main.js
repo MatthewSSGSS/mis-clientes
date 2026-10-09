@@ -167,6 +167,11 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', (
 // Funciona sin internet y se puede instalar (service worker)
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  // En iPhone la app instalada casi nunca se cierra del todo: al volver a ella,
+  // buscar si hay versión nueva (si no, se quedaría con la vieja por días).
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') navigator.serviceWorker.getRegistration().then((r) => r?.update()).catch(() => {});
+  });
   // Cuando se publica una versión nueva, el service worker nuevo toma el control:
   // recargar una vez para que se vea de inmediato (no aplica en la primera visita).
   const habiaVersion = !!navigator.serviceWorker.controller;
