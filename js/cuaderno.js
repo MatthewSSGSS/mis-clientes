@@ -60,6 +60,14 @@ export function fechaConMes(texto, anio = new Date().getFullYear()) {
   return `${m[3] || anio}-${pad(mes)}-${pad(dia)}`;
 }
 
+/** "AGOSTO", "ago", "Sept.", "8" → 8 (0 si no es un mes). */
+export function numeroMes(texto) {
+  const s = norm(texto).replace(/[^a-z0-9]/g, '');
+  if (/^\d{1,2}$/.test(s)) { const n = Number(s); return n >= 1 && n <= 12 ? n : 0; }
+  const forma = FORMAS_MES.find((f) => s.startsWith(f));
+  return forma ? (MESES[forma.slice(0, 3)] ?? MESES[forma] ?? 0) : 0;
+}
+
 /** "$100'960.100", "100.960.100", 100960100 → 100960100 (0 si no hay número). */
 export function aPesos(v) {
   if (typeof v === 'number') return Math.round(v);

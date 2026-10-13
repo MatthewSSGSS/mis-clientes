@@ -23,7 +23,7 @@ import {
 import {
   importarExcel, importarContactos, filasAClientes, vistaPreviaImportacion, ETIQUETAS, aCumple, descargarPlantillaVentas,
 } from './importar.js';
-import { pareceCuaderno, lineasAVentas, revisarVentas, abrirListas } from './cuaderno.js';
+import { pareceCuaderno, lineasAVentas, revisarVentas, abrirListas, numeroMes } from './cuaderno.js';
 import { FORMATO_CUADERNO } from './config.js';
 import { formato, infoColumna, convertir, columnaPorTitulo, idPropio } from './formato.js';
 import * as nube from './nube.js';
@@ -118,6 +118,8 @@ export async function importarDocumento() {
 
   // Con cuenta: la letra a mano la lee Claude (mucho mejor que el lector gratis)
   if (nube.enCuenta() && (esFoto || esPDF)) {
+    const anio = await elegirAnio();
+    if (!anio) return;
     const prog = ventanaProgreso(`Leyendo ${file.name}`);
     try {
       let lienzos;
@@ -127,7 +129,7 @@ export async function importarDocumento() {
         if (r.lineas) { prog.terminar(); procesarLineas(r.lineas, { origen, archivo: file.name }); return; } // PDF con texto
         lienzos = r.lienzos;
       }
-      const { filas, columnas } = await leerConClaude(lienzos, prog);
+      const { filas, columnas } = await leerConClaude(lienzos, prog, anio);
       if (prog.cancelado()) return;
       prog.terminar(true);
       if (!filas.length) { aviso('No encontré clientes en esa foto. Revisa que se vea toda la hoja.', { icono: 'x', ms: 7000 }); return; }
@@ -231,15 +233,47 @@ function mensajeErrorIA(codigo) {
 /** Lienzo → base64 JPEG (sin el prefijo "data:") */
 const aBase64 = (lienzo) => lienzo.toDataURL('image/jpeg', 0.85).split(',')[1];
 
+let ultimoAnio = null; // se recuerda mientras la app esté abierta
+/** Pregunta de qué año son las hojas (si la hoja lo dice, Claude usa el de la hoja). */
+function elegirAnio() {
+  const actual = new Date().getFullYear();
+  const opciones = [actual, actual - 1, actual - 2, actual - 3];
+  return new Promise((resolve) => {
+    let listo = false;
+    const elegir = (n) => { listo = true; ultimoAnio = n; cerrarHoja(); setTimeout(() => resolve(n), 80); };
+    abrirHoja({
+      titulo: '¿De qué año son estas hojas?',
+      cuerpo: `
+        <p class="small muted">Así cada venta queda en su mes y su año. Si la hoja tiene el año escrito, se usa el de la hoja.</p>
+        <div class="anio-grid mt-16">
+          ${opciones.map((n) => `<button type="button" class="btn ${n === (ultimoAnio ?? actual) ? 'btn-primary' : 'btn-outline'} btn-lg" data-anio="${n}">${n}</button>`).join('')}
+        </div>
+        <form class="tools-row mt-12" data-otro>
+          <input class="input" name="anio" inputmode="numeric" maxlength="4" placeholder="Otro año (ej. 2021)">
+          <button class="btn btn-outline" type="submit">Usar</button>
+        </form>`,
+      montar: (el) => {
+        el.querySelectorAll('[data-anio]').forEach((b) => b.addEventListener('click', () => elegir(Number(b.dataset.anio))));
+        el.querySelector('[data-otro]').addEventListener('submit', (e) => {
+          e.preventDefault();
+          const n = Number(e.target.anio.value);
+          if (n >= 2000 && n <= actual + 1) elegir(n);
+          else aviso('Escribe un año de 4 cifras, por ejemplo 2024', { icono: 'x' });
+        });
+      },
+      cerrar: () => { if (!listo) resolve(null); },
+    });
+  });
+}
+
 /**
  * Envía cada hoja a Claude (por el servidor) y junta las filas.
  * Claude devuelve las columnas que ve en la hoja; el formato de la persona va como pista.
  * @returns {Promise<{filas:object[], columnas:object[]}>}
  */
-async function leerConClaude(lienzos, prog) {
+async function leerConClaude(lienzos, prog, anio = new Date().getFullYear()) {
   const filas = [];
   let columnas = [];
-  const anio = new Date().getFullYear();
   const mio = formato();
   const pista = mio.map((c) => ({ titulo: c.titulo, campo: IA_DE_CAMPO[c.id] || 'otro' }));
   for (let i = 0; i < lienzos.length; i++) {
@@ -262,17 +296,29 @@ async function leerConClaude(lienzos, prog) {
     } else {
       const hoja = columnasDeClaude(r.columnas, [...columnas, ...mio]);
       for (const c of hoja.columnas) if (!columnas.some((x) => x.id === c.id)) columnas.push(c);
+      // El mes del cuaderno se escribe una sola vez por bloque (a veces en vertical):
+      // vale para todas las filas siguientes hasta que aparece otro mes. Cada hoja empieza de cero.
+      const kMes = (r.columnas || []).findIndex((c) => c.campo === 'mes');
+      const anioHoja = r.anio || anio;
+      let mesActual = 0;
+      if (kMes >= 0 && !columnas.some((c) => c.id === 'fechaCompra')) columnas.push(infoColumna({ id: 'fechaCompra', titulo: 'Fecha' }));
       for (const f of r.filas || []) {
         const fila = { linea: '', dudas: [] };
         hoja.ids.forEach((id, k) => {
           if (!id) return;
           const col = columnas.find((c) => c.id === id);
-          let v = convertir((f.celdas || [])[k] ?? '', col.tipo, r.anio || anio);
+          let v = convertir((f.celdas || [])[k] ?? '', col.tipo, anioHoja);
           if (id === 'telefono' || id === 'pedido') v = String(v).replace(/\D/g, '');
           fila[id] = v;
         });
         fila.dudas = (f.dudas || []).map((k) => hoja.ids[k]).filter(Boolean);
-        if (Object.keys(fila).some((k) => !['linea', 'dudas'].includes(k) && fila[k] !== '' && fila[k] !== 0)) filas.push(fila);
+        if (kMes >= 0) mesActual = numeroMes((f.celdas || [])[kMes]) || mesActual;
+        // Sin fecha de entrega: queda en el mes de su bloque (día 1, en rojo para revisarlo)
+        if (mesActual && !fila.fechaCompra) {
+          fila.fechaCompra = `${anioHoja}-${String(mesActual).padStart(2, '0')}-01`;
+          fila.dudas.push('fechaCompra');
+        }
+        if (Object.keys(fila).some((k) => !['linea', 'dudas', 'fechaCompra'].includes(k) && fila[k] !== '' && fila[k] !== 0)) filas.push(fila);
       }
     }
     prog.avance((i + 1) / lienzos.length);

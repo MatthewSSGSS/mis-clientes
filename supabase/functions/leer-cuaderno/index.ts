@@ -33,11 +33,14 @@ Recibes la foto de UNA hoja con una tabla escrita a mano. Cada fila es un client
    En "campo" indica qué dato es:
    pedido (número de pedido u orden) · vehiculo (modelo que compró) · nombre (nombre del cliente) · poliza (marca de si tomó la póliza o seguro) · cedula (cédula o NIT) · celular · valor_venta (valor del vehículo en pesos) · fecha_entrega (fecha de entrega o de compra) · comision (comisión en pesos) · fecha_pago_comision · cumpleanos · correo · notas (observaciones) · mes (solo el nombre del mes de la sección) · otro (cualquier otra columna: placa, color, financiera…).
 2. Devuelve TODAS las filas con datos, en el orden del cuaderno. No inventes filas. En "celdas" va un valor por cada columna, en el mismo orden; si la casilla está vacía, "".
+3. El MES casi siempre se escribe una sola vez para un bloque de filas (en vertical, en una casilla grande o como título de sección). Ese mes vale para todas las filas del bloque, hasta que empieza otro: repítelo en la celda "mes" de CADA fila del bloque.
+4. Si la foto muestra dos páginas (cuaderno abierto), cada página tiene sus propios meses. Lee primero toda la página izquierda, de arriba abajo, y después toda la derecha.
 
 Cómo escribir cada valor:
 - Lee cada dígito con mucho cuidado: los números son lo más importante.
 - Plata (valor_venta, comision u otras cantidades en pesos): solo dígitos, sin puntos ni signos (ej. "$100'960.100" → "100960100").
-- Fechas: AAAA-MM-DD usando el año de la hoja (si no aparece, el indicado). Si falta el día, deja "". La fecha de pago de la comisión suele ser 1 o 2 meses después de la entrega; si cae en enero y la entrega en diciembre, súmale un año.
+- Fechas: AAAA-MM-DD usando el año de la hoja (si no aparece, el indicado). Si la fecha solo tiene el día, usa el mes de su bloque. Si no hay día, deja "". La fecha de pago de la comisión suele ser 1 o 2 meses después de la entrega; si cae en enero y la entrega en diciembre, súmale un año.
+- mes: el nombre del mes de su bloque (ej. "Agosto").
 - Marcas de sí/no (como la póliza): "si" para chulo ✓ y "no" para X. Ignora letras pequeñas como "o" o "d" junto a la marca.
 - celular y cedula: solo los dígitos (un NIT puede llevar guion).
 - nombre: como en el cuaderno, con mayúscula inicial en cada palabra (ej. "Dairo Luis Luna Melendez").

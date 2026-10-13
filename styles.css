@@ -1186,3 +1186,6 @@ body.hoja-abierta .toast { bottom: auto; top: calc(var(--safe-t) + 14px); }
 .fila-mes-in { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
 .fila-mes-in b { font-size: 16px; font-weight: 800; }
 .fila-mes-in span { font-size: 13px; font-weight: 700; color: var(--muted); }
+
+/* Elegir el año de las hojas antes de leerlas */
+.anio-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
