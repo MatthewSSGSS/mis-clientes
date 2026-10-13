@@ -22,7 +22,7 @@
 
 import * as store from './store.js';
 import { FORMATO_CUADERNO } from './config.js';
-import { formato, normalizarFormato, infoColumna, guardarFormato, ponerValor, textoValor, atributosEntrada, convertir } from './formato.js';
+import { formato, normalizarFormato, infoColumna, guardarFormato, ponerValor, textoValor, atributosEntrada, convertir, fechasEnAnio } from './formato.js';
 import { abrirHoja, cerrarHoja, aviso, icon, confirmar } from './ui.js';
 import { esc, norm, plural, uid, telefonoInternacional, nombreMes, cuando } from './util.js';
 
@@ -270,7 +270,7 @@ const columnasGuardables = (cols) => cols.map(({ id, titulo, tipo, propia }) => 
  * @param {{columnas?:object[], ocr?:boolean, ia?:boolean, origen?:string, nombre?:string}} o
  *        columnas: las del cuaderno, en su orden (si no vienen, las del formato de la persona)
  */
-export function revisarVentas(filas, { columnas, ocr = false, ia = false, origen = 'Importado del cuaderno', nombre = '' } = {}) {
+export function revisarVentas(filas, { columnas, ocr = false, ia = false, origen = 'Importado del cuaderno', nombre = '', anio = null } = {}) {
   const cols = normalizarFormato(columnas || columnasLeidas(filas));
   const cp = store.ajustes().codigoPais;
   const telefonos = new Set(store.clientes().map((c) => telefonoInternacional(c.telefono, cp)).filter(Boolean));
@@ -279,6 +279,7 @@ export function revisarVentas(filas, { columnas, ocr = false, ia = false, origen
     nombre: nombre || (/^Importado de /.test(origen) && origen !== 'Importado de una lista' ? origen.slice(13) : 'Lista escrita o pegada'),
     origen,
     fuente: ia ? 'ia' : ocr ? 'ocr' : 'texto',
+    ...(anio ? { anio } : {}),
     columnas: columnasGuardables(cols),
     filas: filas.map((v) => {
       const repetido = (v.telefono && telefonos.has(telefonoInternacional(v.telefono, cp))) || (v.pedido && pedidos.has(String(v.pedido)));
@@ -352,12 +353,17 @@ export function abrirLista(id) {
   const proponer = l.fuente === 'ia' && firma(cols) !== firma(formato()) && store.ajustes().formatoDescartado !== firma(cols);
   let modo = 'ver'; // 'ver' | 'editar'
   let timer = null;
+  // Año de la lista: el que se eligió al leerla, o el más común en sus fechas
+  const anios = filas.map((x) => String(x.fechaCompra || '').slice(0, 4)).filter((a) => /^\d{4}$/.test(a));
+  let anioLista = l.anio || Number(anios.sort((a, b) => anios.filter((y) => y === b).length - anios.filter((y) => y === a).length)[0]) || new Date().getFullYear();
+  const hayFechas = cols.some((c) => c.tipo === 'fecha');
+  const opcionesAnio = [...new Set([anioLista, ...Array.from({ length: 8 }, (_, k) => new Date().getFullYear() - k)])].sort((a, b) => b - a);
 
   // Guardar los cambios en la lista (poco después de cada edición)
   const guardar = () => {
     clearTimeout(timer);
     const actual = store.lectura(id);
-    if (actual) store.guardarLectura({ ...actual, filas: structuredClone(filas) });
+    if (actual) store.guardarLectura({ ...actual, anio: anioLista, filas: structuredClone(filas) });
   };
   const guardarLuego = () => { clearTimeout(timer); timer = setTimeout(guardar, 700); };
 
@@ -427,8 +433,10 @@ export function abrirLista(id) {
         <div class="hstack mt-8" style="flex-wrap:wrap"><button class="btn btn-primary btn-sm" type="button" data-usar-formato>${icon('check', 'i-sm')} Usar este formato</button><button class="btn btn-ghost btn-sm" type="button" data-no-formato>Ahora no</button></div></div></div>` : ''}
       ${l.fuente === 'ia' || l.fuente === 'ocr' ? `<div class="banner ${l.fuente === 'ia' ? 'info' : 'warn'} ${proponer ? 'mt-12' : ''}">${icon(l.fuente === 'ia' ? 'sparkles' : 'scan', 'i-lg')}<div><strong>${fuente}</strong>
         Compara la tabla con tu cuaderno. Lo que está en <span style="color:var(--c-red);font-weight:700">rojo</span> no se entendía bien: tócalo para corregirlo. La lista se guarda sola; puedes seguir después en <b>Listas leídas</b>.</div></div>` : ''}
-      <div class="hstack mt-12" style="flex-wrap:wrap">
-        <span class="small muted spacer" data-resumen></span>
+      <p class="small muted mt-12" data-resumen></p>
+      <div class="hstack mt-8" style="flex-wrap:wrap;justify-content:space-between">
+        ${hayFechas ? `<label class="anio-lista"><span class="small muted">Año</span>
+          <select class="select select-sm" data-anio-lista aria-label="Año de la lista">${opcionesAnio.map((a) => `<option value="${a}" ${a === anioLista ? 'selected' : ''}>${a}</option>`).join('')}</select></label>` : ''}
         <button class="btn btn-primary btn-sm" type="button" data-modo></button>
       </div>
       <div class="tabla-scroll mt-12"><table data-tabla></table></div>
@@ -453,6 +461,29 @@ export function abrirLista(id) {
       el.querySelector('[data-modo]').addEventListener('click', () => {
         modo = modo === 'ver' ? 'editar' : 'ver';
         pintarTabla(el);
+      });
+      // Cambiar el año: corrige las fechas de la lista y de los clientes que ya se pasaron desde ella
+      el.querySelector('[data-anio-lista]')?.addEventListener('change', async (e) => {
+        const nuevo = Number(e.target.value);
+        const pasados = filas.filter((x) => x.pasada && x.clienteId && store.cliente(x.clienteId));
+        if (pasados.length) {
+          const ok = await confirmar({
+            titulo: `¿Pasar esta lista a ${nuevo}?`,
+            texto: `Se cambia el año de todas las fechas de la lista y de los <b>${plural(pasados.length, 'cliente', 'clientes')}</b> que ya pasaste desde ella. Los demás clientes no se tocan.`,
+            si: `Cambiar a ${nuevo}`,
+          });
+          if (!ok) { abrirLista(id); return; }
+        }
+        anioLista = nuevo;
+        for (const x of filas) fechasEnAnio(x, cols, nuevo);
+        for (const x of pasados) {
+          const c = store.cliente(x.clienteId);
+          fechasEnAnio(c, cols, nuevo, { usarCliente: true });
+          store.guardarCliente(c);
+        }
+        guardar();
+        aviso(`Fechas cambiadas a ${nuevo}${pasados.length ? ` · ${plural(pasados.length, 'cliente corregido', 'clientes corregidos')}` : ''}`, { ms: 5000 });
+        if (pasados.length) abrirLista(id); else pintarTabla(el);
       });
       // En "ver", tocar una casilla abre la edición justo ahí
       tabla.addEventListener('click', (e) => {

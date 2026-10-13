@@ -1193,3 +1193,7 @@ body.hoja-abierta .toast { bottom: auto; top: calc(var(--safe-t) + 14px); }
 /* Botones de borrar que no son el principal */
 .texto-peligro { color: var(--c-red); }
 .mb-12 { margin-bottom: 12px; }
+
+/* Año de una lista leída */
+.anio-lista { display: inline-flex; align-items: center; gap: 6px; }
+.anio-lista .select { width: auto; font-size: 16px; }

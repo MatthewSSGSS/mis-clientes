@@ -97,6 +97,28 @@ export function convertir(v, tipo, anio) {
   }
 }
 
+// --- Año de las fechas ------------------------------------------------------------
+/** '2026-08-05' → '2025-08-05' (lo que no sea fecha queda igual). */
+export const conAnio = (iso, anio) => (/^\d{4}-\d{2}-\d{2}$/.test(iso || '') ? `${anio}${iso.slice(4)}` : iso);
+
+/**
+ * Pone en `anio` todas las fechas de una fila leída (o de un cliente, con usarCliente).
+ * Si el pago de la comisión queda antes de la entrega (entrega en diciembre, pago en
+ * enero), el pago es del año siguiente.
+ */
+export function fechasEnAnio(x, cols, anio, { usarCliente = false } = {}) {
+  const leer = (col) => (usarCliente ? valorDe(x, col) : x[col.id]);
+  const poner = (col, v) => (usarCliente ? ponerValor(x, col, v) : (x[col.id] = v));
+  for (const col of cols) {
+    if (col.tipo !== 'fecha') continue;
+    const v = leer(col);
+    if (v) poner(col, conAnio(v, anio));
+  }
+  if (x.fechaCompra && x.fechaPagoComision && x.fechaPagoComision < x.fechaCompra) {
+    x.fechaPagoComision = conAnio(x.fechaPagoComision, anio + 1);
+  }
+}
+
 const pesos = (n) => (Number(n) ? `$${Number(n).toLocaleString('es-CO')}` : '');
 
 /**

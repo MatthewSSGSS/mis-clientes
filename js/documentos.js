@@ -25,7 +25,7 @@ import {
 } from './importar.js';
 import { pareceCuaderno, lineasAVentas, revisarVentas, abrirListas, numeroMes } from './cuaderno.js';
 import { FORMATO_CUADERNO } from './config.js';
-import { formato, infoColumna, convertir, columnaPorTitulo, idPropio } from './formato.js';
+import { formato, infoColumna, convertir, columnaPorTitulo, idPropio, fechasEnAnio } from './formato.js';
 import * as nube from './nube.js';
 
 const LIBS = {
@@ -133,7 +133,7 @@ export async function importarDocumento() {
       if (prog.cancelado()) return;
       prog.terminar(true);
       if (!filas.length) { aviso('No encontré clientes en esa foto. Revisa que se vea toda la hoja.', { icono: 'x', ms: 7000 }); return; }
-      revisarVentas(filas, { columnas, ia: true, origen });
+      revisarVentas(filas, { columnas, ia: true, origen, anio });
       return;
     } catch (e) {
       console.error(e);
@@ -244,7 +244,7 @@ function elegirAnio() {
     abrirHoja({
       titulo: '¿De qué año son estas hojas?',
       cuerpo: `
-        <p class="small muted">Así cada venta queda en su mes y su año. Si la hoja tiene el año escrito, se usa el de la hoja.</p>
+        <p class="small muted">Todas las fechas de estas hojas quedan en el año que elijas. Si te equivocas, lo puedes cambiar después en la lista.</p>
         <div class="anio-grid mt-16">
           ${opciones.map((n) => `<button type="button" class="btn ${n === (ultimoAnio ?? actual) ? 'btn-primary' : 'btn-outline'} btn-lg" data-anio="${n}">${n}</button>`).join('')}
         </div>
@@ -299,7 +299,7 @@ async function leerConClaude(lienzos, prog, anio = new Date().getFullYear()) {
       // El mes del cuaderno se escribe una sola vez por bloque (a veces en vertical):
       // vale para todas las filas siguientes hasta que aparece otro mes. Cada hoja empieza de cero.
       const kMes = (r.columnas || []).findIndex((c) => c.campo === 'mes');
-      const anioHoja = r.anio || anio;
+      const anioHoja = anio; // manda el año que eligió la persona (Claude a veces "ve" otro)
       let mesActual = 0;
       if (kMes >= 0 && !columnas.some((c) => c.id === 'fechaCompra')) columnas.push(infoColumna({ id: 'fechaCompra', titulo: 'Fecha' }));
       for (const f of r.filas || []) {
@@ -323,7 +323,9 @@ async function leerConClaude(lienzos, prog, anio = new Date().getFullYear()) {
     }
     prog.avance((i + 1) / lienzos.length);
   }
-  return { filas, columnas };
+  // Todas las fechas en el año elegido (Claude a veces escribe el de un encabezado o el actual)
+  for (const f of filas) fechasEnAnio(f, columnas, anio);
+  return { filas, columnas, anio };
 }
 
 /** Ventana con barra de progreso mientras se lee el archivo. */

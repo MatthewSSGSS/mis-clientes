@@ -39,7 +39,7 @@ Recibes la foto de UNA hoja con una tabla escrita a mano. Cada fila es un client
 Cómo escribir cada valor:
 - Lee cada dígito con mucho cuidado: los números son lo más importante.
 - Plata (valor_venta, comision u otras cantidades en pesos): solo dígitos, sin puntos ni signos (ej. "$100'960.100" → "100960100").
-- Fechas: AAAA-MM-DD usando el año de la hoja (si no aparece, el indicado). Si la fecha solo tiene el día, usa el mes de su bloque. Si no hay día, deja "". La fecha de pago de la comisión suele ser 1 o 2 meses después de la entrega; si cae en enero y la entrega en diciembre, súmale un año.
+- Fechas: AAAA-MM-DD usando SIEMPRE el año indicado (lo eligió la persona), aunque en la hoja veas otro. Si la fecha solo tiene el día, usa el mes de su bloque. Si no hay día, deja "". La fecha de pago de la comisión suele ser 1 o 2 meses después de la entrega; si cae en enero y la entrega en diciembre, súmale un año.
 - mes: el nombre del mes de su bloque (ej. "Agosto").
 - Marcas de sí/no (como la póliza): "si" para chulo ✓ y "no" para X. Ignora letras pequeñas como "o" o "d" junto a la marca.
 - celular y cedula: solo los dígitos (un NIT puede llevar guion).
@@ -139,7 +139,7 @@ Deno.serve(async (req) => {
         role: 'user',
         content: [
           { type: 'image', source: { type: 'base64', media_type: tipo, data: imagen } },
-          { type: 'text', text: `Pasa a digital esta hoja del cuaderno. Si no ves el año escrito, usa ${anio}.${pista}` },
+          { type: 'text', text: `Pasa a digital esta hoja del cuaderno. Todas las fechas son del año ${anio}.${pista}` },
         ],
       }],
     });
