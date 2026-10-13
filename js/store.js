@@ -332,6 +332,36 @@ export function eliminarClientesDonde(condicion) {
   return borrar.size;
 }
 
+/**
+ * Igual que eliminarClientesDonde, pero devuelve una copia de lo borrado
+ * (clientes, sus citas, envíos y destinatarios de mensajes) para poder deshacerlo.
+ */
+export function eliminarClientesConDeshacer(condicion) {
+  const ids = new Set(datos.clientes.filter(condicion).map((c) => c.id));
+  const copia = {
+    clientes: datos.clientes.filter((c) => ids.has(c.id)).map((c) => structuredClone(c)),
+    citas: datos.citas.filter((x) => ids.has(x.clienteId)).map((x) => structuredClone(x)),
+    envios: datos.envios.filter((e) => ids.has(e.clienteId)).map((e) => structuredClone(e)),
+    programados: datos.programados.filter((p) => p.destino?.ids?.some((id) => ids.has(id))).map((p) => ({ id: p.id, ids: [...p.destino.ids] })),
+  };
+  if (ids.size) eliminarClientesDonde((c) => ids.has(c.id));
+  return copia;
+}
+
+/** Deshace eliminarClientesConDeshacer. */
+export function restaurarClientes(copia) {
+  const t = ahora();
+  for (const x of [...copia.clientes, ...copia.citas]) { delete datos.borrados[x.id]; x.actualizado = t; }
+  datos.clientes.unshift(...copia.clientes);
+  datos.citas.push(...copia.citas);
+  datos.envios = [...datos.envios, ...copia.envios].sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
+  for (const p of copia.programados) {
+    const x = programado(p.id);
+    if (x?.destino) { x.destino.ids = p.ids; x.actualizado = t; }
+  }
+  cambio();
+}
+
 export function restaurarCliente({ cliente: c, indice }) {
   delete datos.borrados[c.id];
   c.actualizado = ahora();

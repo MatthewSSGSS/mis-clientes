@@ -10,7 +10,7 @@
 // ARCHIVOS y cambia VERSION.
 // =============================================================================
 
-const VERSION = 'v21';
+const VERSION = 'v22';
 const CACHE = `mis-clientes-${VERSION}`;
 
 const ARCHIVOS = [

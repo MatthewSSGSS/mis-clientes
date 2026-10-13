@@ -13,6 +13,7 @@ import { importarDocumento, escribirLista } from '../documentos.js';
 import { abrirListas } from '../cuaderno.js';
 import { formato, tieneFormato } from '../formato.js';
 import { abrirEditorFormato } from '../formato-editor.js';
+import { abrirBorrarPorAnio } from './clientes.js';
 import { abrirRecordatorio, textoRecordatorio, estadoInsignia, activarInsignia } from '../recordatorios.js';
 import { tienePin, configurarPin, quitarPin } from '../sesion.js';
 import * as nube from '../nube.js';
@@ -195,6 +196,7 @@ export function render(root) {
 
       <div class="settings-group">
         <h2>Zona de cuidado</h2>
+        ${store.clientes().length ? `<button class="btn btn-outline btn-block mb-12 texto-peligro" data-borrar-anio>${icon('calendar')} Eliminar los clientes de un año</button>` : ''}
         <button class="btn btn-danger btn-block" data-borrar-todo>${icon('trash')} Borrar todos mis datos</button>
       </div>
 
@@ -238,6 +240,7 @@ export function render(root) {
   root.querySelector('[data-ej-borrar]')?.addEventListener('click', () => borrarEjemplo());
   root.querySelector('[data-ver-pasos]')?.addEventListener('click', () => { store.actualizarAjustes({ ocultarPasos: false }); aviso('Listo, están de nuevo en Inicio'); });
 
+  root.querySelector('[data-borrar-anio]')?.addEventListener('click', () => abrirBorrarPorAnio());
   root.querySelector('[data-borrar-todo]').addEventListener('click', async () => {
     const n = store.clientes().length;
     const ok = await confirmar({

@@ -1189,3 +1189,7 @@ body.hoja-abierta .toast { bottom: auto; top: calc(var(--safe-t) + 14px); }
 
 /* Elegir el año de las hojas antes de leerlas */
 .anio-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+
+/* Botones de borrar que no son el principal */
+.texto-peligro { color: var(--c-red); }
+.mb-12 { margin-bottom: 12px; }

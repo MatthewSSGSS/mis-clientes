@@ -15,7 +15,7 @@ import { abrirFormularioCliente } from '../cliente-form.js';
 import { menuImportar } from '../documentos.js';
 import { vehiculoBonito } from '../cuaderno.js';
 import { formato, valorDe, textoValor } from '../formato.js';
-import { icon, avatar, pillEtapa, vacio, botonTema, botonInicio, abrirHoja, cerrarHoja } from '../ui.js';
+import { icon, avatar, pillEtapa, vacio, botonTema, botonInicio, abrirHoja, cerrarHoja, confirmar, aviso } from '../ui.js';
 import { esc, norm, relativo, hoy, plural, telefonoBonito, debounce, nombreMes, fechaCorta } from '../util.js';
 import { dinero, dineroCorto } from '../engine.js';
 
@@ -303,12 +303,85 @@ function pintarLista(el, etapa, pintar) {
   // En computador, los vendidos en una sola tabla (columnas alineadas), con una fila por mes
   if (etapa === 'vendido') html += tablaVentas(grupos, cols, porMes ? (k) => `<b>${esc(tituloDe(k))}</b><span>${totalDe(k)}</span>` : null);
   if (lista.length > limite) html += `<button class="btn btn-outline btn-block mt-16" data-mas>Mostrar más (${lista.length - limite})</button>`;
+  if (anio !== 'todos') html += `<div class="center mt-24"><button class="btn btn-ghost btn-sm texto-peligro" data-borrar-anio>${icon('trash', 'i-sm')} Eliminar los clientes de ${esc(anio)}</button></div>`;
   el.innerHTML = html;
+  el.querySelector('[data-borrar-anio]')?.addEventListener('click', () => abrirBorrarPorAnio({ anio, soloVendidos: etapa === 'vendido' }));
 
   el.querySelector('[data-mas]')?.addEventListener('click', () => { limite += POR_PAGINA; pintarLista(el, etapa, pintar); });
   el.querySelectorAll('tr[data-ir]').forEach((tr) => tr.addEventListener('click', (e) => {
     if (!e.target.closest('a')) location.hash = tr.dataset.ir;
   }));
+}
+
+// --- Borrar todos los clientes de un año ----------------------------------------------
+/**
+ * Ventana para eliminar los clientes de un año (vendidos por fecha de entrega,
+ * los demás por fecha de registro). Se puede deshacer justo después.
+ * @param {{anio?:string, soloVendidos?:boolean}} [o]
+ */
+export function abrirBorrarPorAnio({ anio: anioInicial = '', soloVendidos = false } = {}) {
+  const todos = store.clientes();
+  const anios = [...contar(todos, (c) => fechaDe(c).slice(0, 4)).entries()].sort((a, b) => b[0].localeCompare(a[0]));
+  if (!anios.length) { aviso('No hay clientes con fecha para borrar', { icono: 'x' }); return; }
+  let elegido = anios.some(([a]) => a === anioInicial) ? anioInicial : anios[0][0];
+  let solo = soloVendidos;
+  const delAnio = () => todos.filter((c) => fechaDe(c).startsWith(elegido) && (!solo || c.etapa === 'vendido'));
+
+  const pintar = (el) => {
+    const l = delAnio();
+    const vendidos = l.filter((c) => c.etapa === 'vendido').length;
+    const conCitas = store.citas().filter((x) => l.some((c) => c.id === x.clienteId)).length;
+    el.querySelector('[data-anios]').innerHTML = anios.map(([a, n]) =>
+      `<button type="button" class="chip" data-a="${a}" aria-pressed="${a === elegido}">${a} <span class="count">${n}</span></button>`).join('');
+    el.querySelectorAll('[data-que] button').forEach((b) => b.classList.toggle('on', (b.dataset.v === 'vendidos') === solo));
+    el.querySelector('[data-resumen]').innerHTML = l.length
+      ? `Se eliminarán <b>${plural(l.length, 'cliente', 'clientes')}</b> de ${elegido}${vendidos && vendidos < l.length ? ` (${vendidos} vendidos y ${l.length - vendidos} en proceso)` : ''}${conCitas ? `, con ${plural(conCitas, 'cita', 'citas')}` : ''}.`
+      : `No hay ${solo ? 'vendidos' : 'clientes'} de ${elegido}.`;
+    const ok = el.querySelector('[data-ok]');
+    ok.disabled = !l.length;
+    ok.innerHTML = `${icon('trash')} Eliminar ${l.length || ''}`;
+  };
+
+  abrirHoja({
+    titulo: 'Eliminar clientes de un año',
+    cuerpo: `
+      <div class="field"><span class="label">Año</span><div class="chips chips-wrap" data-anios></div></div>
+      <div class="field">
+        <span class="label">¿Cuáles?</span>
+        <div class="segmented" data-que>
+          <button type="button" data-v="todos">Todos los de ese año</button>
+          <button type="button" data-v="vendidos">Solo los vendidos</button>
+        </div>
+      </div>
+      <div class="banner warn">${icon('trash', 'i-lg')}<div data-resumen></div></div>
+      <p class="small muted mt-12">Los vendidos cuentan por su fecha de entrega; los demás, por la fecha en que los registraste. Las listas leídas del cuaderno no se tocan.</p>`,
+    pie: '<button class="btn btn-outline" data-cancelar>Cancelar</button><button class="btn btn-danger" data-ok></button>',
+    montar: (el) => {
+      pintar(el);
+      el.querySelector('[data-anios]').addEventListener('click', (e) => {
+        const b = e.target.closest('[data-a]');
+        if (b) { elegido = b.dataset.a; pintar(el); }
+      });
+      el.querySelectorAll('[data-que] button').forEach((b) => b.addEventListener('click', () => { solo = b.dataset.v === 'vendidos'; pintar(el); }));
+      el.querySelector('[data-cancelar]').addEventListener('click', () => cerrarHoja());
+      el.querySelector('[data-ok]').addEventListener('click', async () => {
+        const l = delAnio();
+        const anioBorrar = elegido;
+        const ok = await confirmar({
+          titulo: `¿Eliminar ${plural(l.length, 'cliente', 'clientes')} de ${anioBorrar}?`,
+          texto: 'Se borran sus fichas, historial y citas. Solo podrás recuperarlos con el botón <b>Deshacer</b> que aparece justo después.',
+          si: 'Sí, eliminar', peligro: true,
+        });
+        if (!ok) return;
+        const ids = new Set(l.map((c) => c.id));
+        const copia = store.eliminarClientesConDeshacer((c) => ids.has(c.id));
+        aviso(`${plural(copia.clientes.length, 'cliente eliminado', 'clientes eliminados')} de ${anioBorrar}`, {
+          icono: 'trash', ms: 12000,
+          accion: { texto: 'Deshacer', fn: () => { store.restaurarClientes(copia); aviso('Clientes recuperados'); } },
+        });
+      });
+    },
+  });
 }
 
 /** "12 ventas · $1.200M · Comisión $8.400.000" (o "5 clientes") */
